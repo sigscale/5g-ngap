@@ -6,7 +6,6 @@
 modhtml = ngap.html \
 			ngap_app.html \
 			ngap_sup.html \
-			ngap_server_sup.html \
 			ngap_endpoint_sup_sup.html \
 			ngap_endpoint_sup.html \
 			ngap_association_sup.html \

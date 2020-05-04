@@ -39,7 +39,7 @@
 %% @private
 %%
 init([] = _Args) ->
-	ChildSpecs = [supervisor(ngap_server_sup, []),
+	ChildSpecs = [server(ngap_server, []),
 			supervisor(ngap_context_sup, []),
 			supervisor(ngap_endpoint_sup_sup, [])],
 	{ok, {{one_for_all, 1, 5}, ChildSpecs}}.
@@ -47,6 +47,20 @@ init([] = _Args) ->
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
+
+-spec server(StartMod, Args) -> Result
+	when
+		StartMod :: atom(),
+		Args :: [term()],
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/gen_server. gen_server} behaviour.
+%% @private
+%%
+server(StartMod, Args) ->
+	StartArgs = [{local, ngap}, StartMod, Args, []],
+	StartFunc = {gen_server, start_link, StartArgs},
+	{StartMod, StartFunc, permanent, 4000, worker, [StartMod]}.
 
 -spec supervisor(StartMod, Args) -> Result
 	when

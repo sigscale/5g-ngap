@@ -5,7 +5,6 @@
 				[ngap,
 				ngap_app,
 				ngap_sup,
-				ngap_erver_sup,
 				ngap_endpoint_sup_sup,
 				ngap_endpoint_sup,
 				ngap_association_sup,

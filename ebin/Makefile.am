@@ -9,7 +9,6 @@ EXTRA_DIST = ngap.app
 beam_DATA = ngap.beam \
 		ngap_app.beam \
 		ngap_sup.beam \
-		ngap_server_sup.beam \
 		ngap_endpoint_sup_sup.beam \
 		ngap_endpoint_sup.beam \
 		ngap_association_sup.beam \
