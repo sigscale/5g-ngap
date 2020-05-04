@@ -2,10 +2,10 @@
 ##
 ## Process this file with automake to produce Makefile.in
 
-erl_DATA =	ngap.erl
+erl_DATA =	ngap_codec.erl
 
-ngap.erl:	$(top_srcdir)/asn_src/ngap.set.asn1
+ngap_codec.erl:	$(top_srcdir)/asn_src/ngap_codec.set.asn1
 	$(ERLC) $(ERLCFLAGS) +noobj $<
 
-CLEANFILES = $(erl_DATA) ngap.asn1db ngap.hrl
+CLEANFILES = $(erl_DATA) ngap_codec.asn1db ngap_codec.hrl
 

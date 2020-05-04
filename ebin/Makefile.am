@@ -8,9 +8,13 @@ EXTRA_DIST = ngap.app
 
 beam_DATA = ngap.beam \
 		ngap_app.beam \
-		ngap_sup.beam
+		ngap_sup.beam \
+		ngap_codec.beam
 
-%.beam:	$(top_builddir)/src/%.erl
+ngap_codec.beam:	$(top_builddir)/src/ngap_codec.erl
+	$(ERLC) $(ERLCFLAGS) $<
+
+%.beam:	$(top_srcdir)/src/%.erl
 	$(ERLC) $(ERLCFLAGS) $<
 
 %.app:   %.app-in
