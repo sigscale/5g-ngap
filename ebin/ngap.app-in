@@ -1,0 +1,11 @@
+{application, %APP_NAME%,
+	[{description, "5GC NGAP protocol stack"},
+		{vsn, "%APP_VERSION%"},
+		{modules,
+				[ngap,
+				ngap_app,
+				ngap_sup]},
+		{registered, [ngap]},
+		{applications, [asn1]},
+		{env, []},
+		{mod, {ngap_app, []}}]}.
