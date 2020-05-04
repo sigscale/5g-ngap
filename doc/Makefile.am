@@ -6,6 +6,15 @@
 modhtml = ngap.html \
 			ngap_app.html \
 			ngap_sup.html \
+			ngap_server_sup.html \
+			ngap_endpoint_sup_sup.html \
+			ngap_endpoint_sup.html \
+			ngap_association_sup.html \
+			ngap_context_sup.html \
+			ngap_server.html \
+			ngap_listen_fsm.html \
+			ngap_association_fsm.html \
+			ngap_context_fsm.html \
 			ngap_codec.html
 
 doc_DATA = overview.edoc $(modhtml) \
@@ -32,5 +41,6 @@ overview.edoc: overview.edoc-in
 
 CLEANFILES = overview.edoc edoc-info index.html \
 		modules-frame.html overview-summary.html packages-frame.html \
-		stylesheet.css erlang.png $(modhtml)
+		stylesheet.css erlang.png sigscale-logo.png supervision.png \
+		$(modhtml)
 

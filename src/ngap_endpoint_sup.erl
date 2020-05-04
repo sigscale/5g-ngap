@@ -1,4 +1,4 @@
-%%% ngap_sup.erl
+%%% ngap_endpoint_sup.erl
 %%% vim: ts=3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2020 SigScale Global Inc.
@@ -17,7 +17,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
--module(ngap_sup).
+-module(ngap_endpoint_sup).
 -copyright('Copyright (c) 2020 SigScale Global Inc.').
 
 -behaviour(supervisor).
@@ -39,27 +39,38 @@
 %% @private
 %%
 init([] = _Args) ->
-	ChildSpecs = [supervisor(ngap_server_sup, []),
-			supervisor(ngap_context_sup, []),
-			supervisor(ngap_endpoint_sup_sup, [])],
-	{ok, {{one_for_all, 1, 5}, ChildSpecs}}.
+	ChildSpecs = [statem(ngap_listen_fsm),
+			supervisor(ngap_association_sup)],
+	{ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
 
--spec supervisor(StartMod, Args) -> Result
+-spec statem(StartMod) -> Result
 	when
 		StartMod :: atom(),
-		Args :: [term()],
+		Result :: supervisor:child_spec().
+%% @doc Build a supervisor child specification for a
+%% 	{@link //stdlib/gen_statem. gen_statem} behaviour.
+%% @private
+%%
+statem(StartMod) ->
+	StartArgs = [StartMod],
+	StartFunc = {gen_statem, start_link, StartArgs},
+	{StartMod, StartFunc, permanent, 4000, worker, [StartMod]}.
+
+-spec supervisor(StartMod) -> Result
+	when
+		StartMod :: atom(),
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
 %% 	{@link //stdlib/supervisor. supervisor} behaviour
 %% 	with registered name.
 %% @private
 %%
-supervisor(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
+supervisor(StartMod) ->
+	StartArgs = [StartMod],
 	StartFunc = {supervisor, start_link, StartArgs},
 	{StartMod, StartFunc, permanent, infinity, supervisor, [StartMod]}.
 

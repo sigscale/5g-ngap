@@ -9,6 +9,15 @@ EXTRA_DIST = ngap.app
 beam_DATA = ngap.beam \
 		ngap_app.beam \
 		ngap_sup.beam \
+		ngap_server_sup.beam \
+		ngap_endpoint_sup_sup.beam \
+		ngap_endpoint_sup.beam \
+		ngap_association_sup.beam \
+		ngap_context_sup.beam \
+		ngap_server.beam \
+		ngap_listen_fsm.beam \
+		ngap_association_fsm.beam \
+		ngap_context_fsm.beam \
 		ngap_codec.beam
 
 ngap_codec.beam:	$(top_builddir)/src/ngap_codec.erl
