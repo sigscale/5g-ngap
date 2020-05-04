@@ -48,8 +48,7 @@
 
 -spec callback_mode() -> Result
 	when
-		Result :: gen_statem:callback_mode()
-				| [gen_statem:callback_mode() | gen_statem:state_enter()].
+		Result :: gen_statem:callback_mode_result().
 %% @doc Set the callback mode of the callback module.
 %% @see //stdlib/gen_statem:callback_mode/0
 %% @private
@@ -77,12 +76,7 @@ init([Sup] = _Args) ->
 		EventType :: gen_statem:event_type(),
 		EventContent :: term(),
 		Data :: statedata(),
-		Result :: {next_state, NextState, NewData}
-				| {next_state, NextState, NewData, Actions}
-				| gen_statem:state_callback_result(gen_statem:action()),
-		NextState :: state(),
-		NewData :: statedata(),
-		Actions :: [gen_statem:action()] | gen_statem:action().
+		Result :: gen_statem:event_handler_result(state()).
 %% @doc Handles events received in the <em>idle</em> state.
 %% @private
 %%
@@ -95,12 +89,7 @@ idle(_EventType, _EventContent, Data) ->
 		EventContent :: term(),
 		State :: state(),
 		Data :: statedata(),
-		Result :: {next_state, NextState, NewData}
-				| {next_state, NextState, NewData, Actions}
-				| gen_statem:state_callback_result(gen_statem:action()),
-		NextState :: state(),
-		NewData :: statedata(),
-		Actions :: [gen_statem:action()] | gen_statem:action().
+		Result :: gen_statem:event_handler_result(State).
 %% @doc Handles events received in the any state.
 %% @private
 %%

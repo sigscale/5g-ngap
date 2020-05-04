@@ -40,7 +40,7 @@
 %%
 init([] = _Args) ->
 	ChildSpecs = [supervisor(ngap_endpoint_sup)],
-	{ok, {simple_one_for_one, 1, 5, ChildSpecs}}.
+	{ok, {{simple_one_for_one, 1, 5}, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
