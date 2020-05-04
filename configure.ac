@@ -80,5 +80,6 @@ AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 ## Output:  create output files
 ##
 
-AC_OUTPUT([Makefile src/Makefile ebin/Makefile doc/Makefile])
+AC_OUTPUT([Makefile src/Makefile ebin/Makefile doc/Makefile
+		test/Makefile])
 
