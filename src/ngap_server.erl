@@ -48,7 +48,7 @@
 
 -spec start(Callback, Options) -> Result
 	when
-		Callback :: atom(),
+		Callback :: {Module :: atom(), Function :: atom()},
 		Options :: [term()],
 		Result :: {ok, EP} | {error, Reason},
 		EP :: pid(),

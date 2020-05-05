@@ -30,7 +30,7 @@
 
 -spec start(Callback) -> Result
 	when
-		Callback :: atom(),
+		Callback :: {Module :: atom(), Function :: atom()},
 		Result :: {ok, Endpoint} | {error, Reason},
 		Endpoint :: pid(),
 		Reason :: term().
@@ -42,9 +42,7 @@ start(Callback) ->
 	when
 		Port :: inet:port_number(),
 		Options :: [term()],
-		Callback :: {Module, Function},
-		Module :: atom(),
-		Function :: atom(),
+		Callback :: {Module :: atom(), Function :: atom()},
 		Result :: {ok, Endpoint} | {error, Reason},
 		Endpoint :: pid(),
 		Reason :: term().
