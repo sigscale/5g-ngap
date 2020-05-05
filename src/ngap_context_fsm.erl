@@ -59,10 +59,13 @@ callback_mode() ->
 -spec init(Args) -> Result
 	when
 		Args :: [term()],
-		Result :: {ok, State, Data} | {ok, State, Data, Actions},
+		Result :: {ok, State, Data} | {ok, State, Data, Actions}
+				| ignore | {stop, Reason},
 		State :: state(),
 		Data :: statedata(),
-		Actions :: [gen_statem:action()].
+		Actions :: Action | [Action],
+		Action :: gen_statem:action(),
+		Reason :: term().
 %% @doc Initialize the {@module} finite state machine.
 %% @see //stdlib/gen_statem:init/1
 %% @private
