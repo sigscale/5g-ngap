@@ -149,7 +149,7 @@ handle_call({'M-SCTP_RELEASE', request, Endpoint, Assoc},
 %% @private
 %%
 handle_cast({'M-SCTP_RELEASE', confirm, Ref, Result},
-		#state{reqs = #{} = State) ->
+		#state{reqs = Reqs} = State) ->
 	case maps:find(Ref, Reqs) of
 		{ok, From} ->
 			gen_server:reply(From, Result),
