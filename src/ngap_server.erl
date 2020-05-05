@@ -175,7 +175,56 @@ handle_info(timeout,
 		#state{sup = Sup, ep_sup_sup = undefined} = State) ->
 	Children = supervisor:which_children(Sup),
 	{_, EpSupSup, _, _} = lists:keyfind(ngap_endpoint_sup_sup, 1, Children),
-	{noreply, State#state{ep_sup_sup = EpSupSup}}.
+	{noreply, State#state{ep_sup_sup = EpSupSup}};
+handle_info({'EXIT', EP, {shutdown, {EP, _Reason}}},
+		#state{eps = EPs} = State) ->
+	NewEPs = maps:remove(EP, EPs),
+	NewState = State#state{eps = NewEPs},
+	{noreply, NewState};
+handle_info({'EXIT', _Pid, {shutdown, {{EP, Assoc}, _Reason}}},
+		#state{fsms = Fsms} = State) ->
+	NewFsms = maps:remove({EP, Assoc}, Fsms),
+	NewState = State#state{fsms = NewFsms},
+	{noreply, NewState};
+handle_info({'EXIT', Pid, _Reason},
+		#state{eps = EPs, fsms = Fsms, reqs = Reqs} = State) ->
+	case maps:is_key(Pid, EPs) of
+		true ->
+			NewState = State#state{eps = maps:remove(Pid, EPs)},
+			{noreply, NewState};
+		false ->
+			Fdel1 = fun F({Key, Fsm, _Iter}) when Fsm ==  Pid ->
+						Key;
+					F({_Key, _Val, Iter}) ->
+						F(maps:next(Iter));
+					F(none) ->
+						none
+			end,
+			Iter1 = maps:iterator(Fsms),
+			case Fdel1(maps:next(Iter1)) of
+				none ->
+					Fdel2 = fun F({Key, {P, _},  _Iter}) when P ==  Pid ->
+								Key;
+							F({_Key, _Val, Iter}) ->
+								F(maps:next(Iter));
+							F(none) ->
+								none
+					end,
+					Iter2 = maps:iterator(Reqs),
+					case Fdel2(maps:next(Iter2)) of
+						none ->
+							{noreply, State};
+						Key2 ->
+							NewReqs = maps:remove(Key2, Reqs),
+							NewState = State#state{reqs = NewReqs},
+							{noreply, NewState}
+					end;
+				Key ->
+					NewFsms = maps:remove(Key, Fsms),
+					NewState = State#state{fsms = NewFsms},
+					{noreply, NewState}
+			end
+	end.
 
 -spec terminate(Reason, State) -> any()
 	when
@@ -185,8 +234,16 @@ handle_info(timeout,
 %% @see //stdlib/gen_server:terminate/3
 %% @private
 %%
-terminate(_Reason, _State) ->
-	ok.
+terminate(normal = _Reason, _State) ->
+	ok;
+terminate(shutdown = _Reason, _State) ->
+	ok;
+terminate({shutdown, _} = _Reason, _State) ->
+	ok;
+terminate(Reason, State) ->
+	error_logger:error_report(["Shutdown",
+			{module, ?MODULE}, {pid, self()},
+			{reason, Reason}, {state, State}]).
 
 -spec code_change(OldVsn, State, Extra) -> Result
 	when
