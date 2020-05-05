@@ -47,7 +47,7 @@
 %% @see //kernel/application:start/2
 %%
 start(normal = _StartType, _Args) ->
-	supervisor:start_link(im_sup, []).
+	supervisor:start_link(ngap_sup, []).
 
 %%----------------------------------------------------------------------
 %% The ngap_app private API
