@@ -9,7 +9,6 @@ AC_COPYRIGHT([Copyright (c) 2020 SigScale Global Inc.])
 AC_PREREQ(2.63)
 AC_CONFIG_SRCDIR([src/ngap_app.erl])
 AC_CONFIG_HEADERS([config.h])
-AC_LANG([Erlang])
 AM_INIT_AUTOMAKE([-Wno-portability])
 
 ##
@@ -23,6 +22,7 @@ AC_ARG_ENABLE([debug],
 ## Programs:  check for programs needed by the configure process,
 ##            the build process, or by one of the programs being built
 ##
+AC_LANG_PUSH([Erlang])
 AC_ERLANG_NEED_ERL
 AC_ERLANG_NEED_ERLC
 if test -z "${ERLCFLAGS}" ; then
@@ -54,6 +54,10 @@ AC_SUBST(asndir)
 ##
 ## Libraries:  check for libraries
 ##
+AC_LANG_POP([Erlang])
+AC_CHECK_LIB([sctp], [sctp_send], [],
+		[AC_MSG_ERROR([libsctp was not found!])])
+AC_LANG_PUSH([Erlang])
 AC_ERLANG_SUBST_ERTS_VER
 AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
 AC_ERLANG_CHECK_LIB([stdlib], [], [AC_MSG_ERROR([stdlib was not found!])])
