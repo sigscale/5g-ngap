@@ -38,39 +38,41 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([] = _Args) ->
-	ChildSpecs = [statem(ngap_listen_fsm),
-			supervisor(ngap_association_sup)],
+init([CallBack, Options] = _Args) ->
+	ChildSpecs = [statem(ngap_listen_fsm, [self(), CallBack, Options]),
+			supervisor(ngap_association_sup, [])],
 	{ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
 
--spec statem(StartMod) -> Result
+-spec statem(StartMod, Args) -> Result
 	when
 		StartMod :: atom(),
+		Args :: [term()],
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
 %% 	{@link //stdlib/gen_statem. gen_statem} behaviour.
 %% @private
 %%
-statem(StartMod) ->
-	StartArgs = [StartMod],
+statem(StartMod, Args) ->
+	StartArgs = [StartMod, Args, []],
 	StartFunc = {gen_statem, start_link, StartArgs},
 	{StartMod, StartFunc, permanent, 4000, worker, [StartMod]}.
 
--spec supervisor(StartMod) -> Result
+-spec supervisor(StartMod, Args) -> Result
 	when
 		StartMod :: atom(),
+		Args :: [term()],
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
 %% 	{@link //stdlib/supervisor. supervisor} behaviour
 %% 	with registered name.
 %% @private
 %%
-supervisor(StartMod) ->
-	StartArgs = [StartMod],
+supervisor(StartMod, Args) ->
+	StartArgs = [StartMod, Args],
 	StartFunc = {supervisor, start_link, StartArgs},
 	{StartMod, StartFunc, permanent, infinity, supervisor, [StartMod]}.
 

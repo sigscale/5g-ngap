@@ -39,7 +39,7 @@
 %% @private
 %%
 init([] = _Args) ->
-	ChildSpecs = [server(ngap_server, []),
+	ChildSpecs = [server(ngap_server, [self()]),
 			supervisor(ngap_context_sup, []),
 			supervisor(ngap_endpoint_sup_sup, [])],
 	{ok, {{one_for_all, 1, 5}, ChildSpecs}}.

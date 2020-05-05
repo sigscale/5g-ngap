@@ -35,7 +35,9 @@
 
 -type state() :: idle.
 
--record(statedata, {sup :: pid()}).
+-record(statedata,
+		{callback :: {Module :: atom(), Function :: atom()},
+		options :: [term()]}).
 -type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
@@ -70,9 +72,9 @@ callback_mode() ->
 %% @see //stdlib/gen_statem:init/1
 %% @private
 %%
-init([Sup] = _Args) ->
+init([Callback, Options] = _Args) ->
 	process_flag(trap_exit, true),
-	{ok, idle, #statedata{sup = Sup}}.
+	{ok, idle, #statedata{callback = Callback, options = Options}}.
 
 -spec idle(EventType, EventContent, Data) -> Result
 	when

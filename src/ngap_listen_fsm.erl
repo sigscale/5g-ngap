@@ -16,7 +16,7 @@
 %%% limitations under the License.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @doc This {@link //stdlib/gen_statem. gen_statem} behaviour callback
-%%% 	module implements an SCTP socket listener in the
+%%% 	module implements a socket handler for incoming SCTP connections in the
 %%% 	{@link //ngap. ngap} application.
 %%%
 -module(ngap_listen_fsm).
@@ -33,9 +33,19 @@
 %% export the callbacks for gen_statem states. 
 -export([listening/3]).
 
+-include_lib("kernel/include/inet_sctp.hrl").
+
 -type state() :: listening.
 
--record(statedata, {sup :: pid()}).
+-record(statedata,
+		{sup :: undefined | pid(),
+		fsm_sup :: undefined | pid(),
+		socket :: gen_sctp:sctp_socket(),
+		options :: [tuple()],
+		local_addr :: undefined | inet:ip_address(),
+		local_port :: undefined | inet:port_number(),
+		fsms = #{} :: #{Assoc :: gen_sctp:assoc_id() => Fsm :: pid()},
+		callback :: {Module :: atom(), State :: term()}}).
 -type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
@@ -59,17 +69,55 @@ callback_mode() ->
 -spec init(Args) -> Result
 	when
 		Args :: [term()],
-		Result :: {ok, State, Data} | {ok, State, Data, Actions},
+		Result :: {ok, State, Data} | {ok, State, Data, Actions}
+				| ignore | {stop, Reason},
 		State :: state(),
 		Data :: statedata(),
-		Actions :: [gen_statem:action()].
+		Actions :: Action | [Action],
+		Action :: gen_statem:action(),
+		Reason :: term().
 %% @doc Initialize the {@module} finite state machine.
 %% @see //stdlib/gen_statem:init/1
 %% @private
 %%
-init([Sup] = _Args) ->
-	process_flag(trap_exit, true),
-	{ok, listening, #statedata{sup = Sup}}.
+init([Sup, Callback, Opts] = _Args) ->
+	Options = [{active, once}, {reuseaddr, true},
+			{sctp_events, #sctp_event_subscribe{adaptation_layer_event = true}},
+			{sctp_default_send_param, #sctp_sndrcvinfo{ppid = 60}},
+			{sctp_adaptation_layer, #sctp_setadaptation{adaptation_ind = 60}}
+			| Opts],
+	try
+		case gen_sctp:open(Options) of
+			{ok, Socket} ->
+				case gen_sctp:listen(Socket, true) of
+					ok ->
+						case inet:sockname(Socket) of
+							{ok, {LocalAddr, LocalPort}} ->
+								process_flag(trap_exit, true),
+								StateData = #statedata{sup = Sup,
+										callback = Callback,
+										options = Options,
+										socket = Socket,
+										local_addr = LocalAddr,
+										local_port = LocalPort},
+								{ok, listening, StateData, 0};
+							{error, Reason} ->
+								gen_sctp:close(Socket),
+								throw(Reason)
+						end;
+					{error, Reason} ->
+						gen_sctp:close(Socket),
+						throw(Reason)
+				end;
+			{error, Reason} ->
+				throw(Reason)
+		end
+	catch
+		Reason1 ->
+			error_logger:error_report(["Failed to open socket",
+					{module, ?MODULE}, {error, Reason1}, {options, Options}]),
+			{stop, Reason1}
+	end.
 
 -spec listening(EventType, EventContent, Data) -> Result
 	when
@@ -80,8 +128,17 @@ init([Sup] = _Args) ->
 %% @doc Handles events received in the <em>listening</em> state.
 %% @private
 %%
-listening(_EventType, _EventContent, Data) ->
-	{next_state, listening, Data}.
+listening(timeout = _EventType, _EventContent,
+		#statedata{fsm_sup = undefined} = Data) ->
+   {next_state, listening, get_fsm_sup(Data)};
+listening(EventType, EventContent,
+		#statedata{fsm_sup = undefined} = Data) ->
+	listening(EventType, EventContent, get_fsm_sup(Data));
+listening(cast, {'M-SCTP_RELEASE', request, Ref, From},
+		#statedata{socket = Socket} = Data) ->
+	gen_server:cast(From,
+			{'M-SCTP_RELEASE', confirm, Ref, gen_sctp:close(Socket)}),
+	{stop, {shutdown, {self(), release}}, Data}.
 
 -spec handle_event(EventType, EventContent, State, Data) -> Result
 	when
@@ -129,4 +186,10 @@ code_change(_OldVsn, OldState, OldData, _Extra) ->
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
+
+%% @hidden
+get_fsm_sup(#statedata{sup = Sup} = Data) ->
+	Children = supervisor:which_children(Sup),
+	{_, AssocSup, _, _} = lists:keyfind(ngap_association_sup, 1, Children),
+	Data#statedata{fsm_sup = AssocSup}.
 
