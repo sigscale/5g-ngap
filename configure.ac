@@ -60,7 +60,10 @@ AC_CHECK_LIB([sctp], [sctp_send], [],
 AC_LANG_PUSH([Erlang])
 AC_ERLANG_SUBST_ERTS_VER
 AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
-AC_ERLANG_CHECK_LIB([stdlib], [], [AC_MSG_ERROR([stdlib was not found!])])
+AC_ERLANG_CHECK_LIB([stdlib],
+		[if echo "$ERLANG_LIB_VER_stdlib\n3.5" | sort -CV;
+		then AC_MSG_ERROR([>= stdlib-3.5 required!]); fi],
+		[AC_MSG_ERROR([stdlib was not found!])])
 AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 
 
