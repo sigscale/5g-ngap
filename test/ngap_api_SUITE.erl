@@ -25,6 +25,9 @@
 -export([init_per_suite/1, end_per_suite/1]).
 -export([init_per_testcase/2, end_per_testcase/2]).
 
+%% ngap_api_SUITE test exports
+-export([start/0, start/1, stop/0, stop/1]).
+
 -include_lib("common_test/include/ct.hrl").
 
 %%---------------------------------------------------------------------
@@ -41,13 +44,14 @@ suite() ->
 %% Initiation before the whole suite.
 %%
 init_per_suite(Config) ->
+	ok = ngap_test_lib:start(),
 	Config.
 
 -spec end_per_suite(Config :: [tuple()]) -> any().
 %% Cleanup after the whole suite.
 %%
 end_per_suite(_Config) ->
-	ok.
+	ok = ngap_test_lib:stop().
 
 -spec init_per_testcase(TestCase :: atom(), Config :: [tuple()]) -> Config :: [tuple()].
 %% Initiation before each test case.
@@ -71,12 +75,25 @@ sequences() ->
 %% Returns a list of all test cases in this test suite.
 %%
 all() ->
-	[].
+	[start, stop].
 
 %%---------------------------------------------------------------------
 %%  Test cases
 %%---------------------------------------------------------------------
 
+start() ->
+	[{userdata, [{doc, "Start NGAP stack on an SCTP endpoint"}]}].
+
+start(_Config) ->
+	{ok, EP} = ngap:start({?MODULE, null}),
+	true = is_pid(EP).
+
+stop() ->
+	[{userdata, [{doc, "Stop NGAP stack on an SCTP endpoint"}]}].
+
+stop(_Config) ->
+	{ok, EP} = ngap:start({?MODULE, null}),
+	ok = ngap:stop(EP).
 
 %%---------------------------------------------------------------------
 %%  Internal functions

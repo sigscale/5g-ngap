@@ -3,7 +3,8 @@
 ##
 ## Process this file with automake to produce Makefile.in
 
-testmods = ngap_api_SUITE
+testmods = ngap_api_SUITE \
+		ngap_test_lib
 
 check_DATA = .dialyzer_ok .common_test_ok
 
