@@ -162,8 +162,15 @@ handle_event(_EventType, _EventContent, State, Data) ->
 %% @see //stdlib/gen_statem:terminate/3
 %% @private
 %%
-terminate(_Reason, _State, _Data) ->
-	ok.
+terminate(_Reason, _State, #statedata{socket = Socket} = Data) ->
+	case gen_sctp:close(Socket) of
+		ok ->
+			ok;
+		{error, Reason1} ->
+			error_logger:error_report(["Failed to close socket",
+					{module, ?MODULE}, {socket, Socket},
+					{error, Reason1}, {statedata, Data}])
+	end.
 
 -spec code_change(OldVsn, OldState, OldData, Extra) -> Result
 	when
