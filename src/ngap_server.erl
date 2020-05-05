@@ -148,8 +148,17 @@ handle_call({'M-SCTP_RELEASE', request, Endpoint, Assoc},
 %% @see //stdlib/gen_server:handle_cast/2
 %% @private
 %%
-handle_cast(stop, State) ->
-	{stop, normal, State}.
+handle_cast({'M-SCTP_RELEASE', confirm, Ref, Result},
+		#state{reqs = #{} = State) ->
+	case maps:find(Ref, Reqs) of
+		{ok, From} ->
+			gen_server:reply(From, Result),
+			NewReqs = maps:remove(Ref, Reqs),
+			NewState = State#state{reqs = NewReqs},
+			{noreply, NewState};
+		error ->
+			{noreply, State}
+	end.
 
 -spec handle_info(Info, State) -> Result
 	when
