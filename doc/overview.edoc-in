@@ -1,6 +1,8 @@
 @copyright 2020 SigScale Global Inc.
 @version %VERSION%
 @title %DESCRIPTION%
+@reference <a href="https://webapp.etsi.org/key/key.asp?GSMSpecPart1=38&amp;GSMSpecPart2=413">3GPP TS 38.413</a> 5G; NG-RAN; NG Application Protocol (NGAP).
+@reference <a href="https://webapp.etsi.org/key/key.asp?GSMSpecPart1=38&amp;GSMSpecPart2=412">3GPP TS 38.412</a> 5G; NG-RAN; NG Signalling Transport (SCTP).
 @doc This application implements a 5GC NGAP protocol stack.
 
 ==Introduction==
