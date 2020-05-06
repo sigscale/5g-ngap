@@ -39,7 +39,7 @@
 
 -record(statedata,
 		{sup :: undefined | pid(),
-		fsm_sup :: undefined | pid(),
+		assoc_sup :: undefined | pid(),
 		socket :: gen_sctp:sctp_socket(),
 		options :: [tuple()],
 		local_addr :: undefined | inet:ip_address(),
@@ -129,16 +129,43 @@ init([Sup, Callback, Opts] = _Args) ->
 %% @private
 %%
 listening(timeout = _EventType, _EventContent,
-		#statedata{fsm_sup = undefined} = Data) ->
-   {next_state, listening, get_fsm_sup(Data)};
+		#statedata{assoc_sup = undefined} = Data) ->
+   {next_state, listening, get_assoc_sup(Data)};
 listening(EventType, EventContent,
-		#statedata{fsm_sup = undefined} = Data) ->
-	listening(EventType, EventContent, get_fsm_sup(Data));
+		#statedata{assoc_sup = undefined} = Data) ->
+	listening(EventType, EventContent, get_assoc_sup(Data));
+listening(info, {sctp, Socket, FromAddr, FromPort,
+		{_AncData, #sctp_assoc_change{state = comm_up} = AssocChange}},
+		Data) ->
+	accept(Socket, FromAddr, FromPort, AssocChange, listening, Data);
+listening(info, {sctp, Socket, _FromAddr, _FromPort,
+		{_AncData, #sctp_paddr_change{}}}, Data) ->
+	inet:setopts(Socket, [{active, once}]),
+	{next_state, listening, Data};
 listening(cast, {'M-SCTP_RELEASE', request, Ref, From},
 		#statedata{socket = Socket} = Data) ->
 	gen_server:cast(From,
 			{'M-SCTP_RELEASE', confirm, Ref, gen_sctp:close(Socket)}),
-	{stop, {shutdown, {self(), release}}, Data}.
+	{stop, {shutdown, {self(), release}}, Data};
+listening(info, {'EXIT', _Pid, {shutdown, {{_EP, Assoc}, _Reason}}},
+		#statedata{fsms = Fsms} = Data) ->
+	NewFsms = maps:remove(Assoc, Fsms),
+	NewData = Data#statedata{fsms = NewFsms},
+	{next_state, listening, NewData};
+listening(info, {'EXIT', Pid, shutdown},
+		#statedata{fsms = Fsms} = Data) ->
+	Fdel = fun Fdel({Assoc, P, _Iter}) when P ==  Pid ->
+		       Assoc;
+		   Fdel({_Key, _Val, Iter}) ->
+		       Fdel(maps:next(Iter));
+		   Fdel(none) ->
+		       none
+	end,
+	Iter = maps:iterator(Fsms),
+	Key = Fdel(maps:next(Iter)),
+	NewFsms = maps:remove(Key, Fsms),
+	NewData = Data#statedata{fsms = NewFsms},
+	{next_state, listening, NewData}.
 
 -spec handle_event(EventType, EventContent, State, Data) -> Result
 	when
@@ -195,8 +222,35 @@ code_change(_OldVsn, OldState, OldData, _Extra) ->
 %%----------------------------------------------------------------------
 
 %% @hidden
-get_fsm_sup(#statedata{sup = Sup} = Data) ->
+get_assoc_sup(#statedata{sup = Sup} = Data) ->
 	Children = supervisor:which_children(Sup),
 	{_, AssocSup, _, _} = lists:keyfind(ngap_association_sup, 1, Children),
-	Data#statedata{fsm_sup = AssocSup}.
+	Data#statedata{assoc_sup = AssocSup}.
+
+%% @hidden
+accept(Socket, Address, Port,
+		#sctp_assoc_change{assoc_id = Assoc} = AssocChange,
+		State, #statedata{assoc_sup = AssocSup, fsms = Fsms,
+		callback = Callback} = Data) ->
+	case gen_sctp:peeloff(Socket, Assoc) of
+		{ok, NewSocket} ->
+			case supervisor:start_child(AssocSup, [[NewSocket, Address, Port,
+					AssocChange, self(), Callback], []]) of
+				{ok, Fsm} ->
+					case gen_sctp:controlling_process(NewSocket, Fsm) of
+						ok ->
+							inet:setopts(Socket, [{active, once}]),
+							NewFsms = Fsms#{Assoc => Fsm},
+							link(Fsm),
+							NewData = Data#statedata{fsms = NewFsms},
+							{next_state, State, NewData};
+						{error, Reason} ->
+							{stop, Reason, Data}
+					end;
+				{error, Reason} ->
+					{stop, Reason, Data}
+			end;
+		{error, Reason} ->
+			{stop, Reason, Data}
+	end.
 

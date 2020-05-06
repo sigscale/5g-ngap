@@ -33,11 +33,19 @@
 %% export the callbacks for gen_statem states. 
 -export([idle/3]).
 
+-include_lib("kernel/include/inet_sctp.hrl").
+
 -type state() :: idle.
 
 -record(statedata,
-		{callback :: {Module :: atom(), Function :: atom()},
-		options :: [term()]}).
+		{socket :: gen_sctp:sctp_socket(),
+		assoc_id :: gen_sctp:assoc_id(),
+		callback :: {Module :: atom(), Function :: atom()},
+		peer_addr :: inet:ip_address(),
+		peer_port :: inet:port_number(),
+		in_streams :: pos_integer(),
+		out_streams :: pos_integer(),
+		endpoint :: pid()}).
 -type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
@@ -72,9 +80,21 @@ callback_mode() ->
 %% @see //stdlib/gen_statem:init/1
 %% @private
 %%
-init([Callback, Options] = _Args) ->
-	process_flag(trap_exit, true),
-	{ok, idle, #statedata{callback = Callback, options = Options}}.
+init([Socket, PeerAddr, PeerPort,
+		#sctp_assoc_change{assoc_id = Assoc,
+		inbound_streams = InStreams, outbound_streams = OutStreams},
+		Endpoint, Callback]) ->
+	case inet:setopts(Socket, [{active, once}]) of
+		ok ->
+			process_flag(trap_exit, true),
+			Data = #statedata{socket = Socket, assoc_id = Assoc,
+					peer_addr = PeerAddr, peer_port = PeerPort,
+					in_streams = InStreams, out_streams = OutStreams,
+					endpoint = Endpoint, callback = Callback},
+			{ok, idle, Data};
+		{error, Reason} ->
+			{stop, Reason}
+	end.
 
 -spec idle(EventType, EventContent, Data) -> Result
 	when
