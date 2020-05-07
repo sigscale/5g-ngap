@@ -140,7 +140,7 @@ listening(info, {sctp, Socket, FromAddr, FromPort,
 	accept(Socket, FromAddr, FromPort, AssocChange, listening, Data);
 listening(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_paddr_change{}}}, Data) ->
-	inet:setopts(Socket, [{active, once}]),
+	ok = inet:setopts(Socket, [{active, once}]),
 	{next_state, listening, Data};
 listening(cast, {'M-SCTP_RELEASE', request, Ref, From},
 		#statedata{socket = Socket} = Data) ->
@@ -239,7 +239,7 @@ accept(Socket, Address, Port,
 				{ok, Fsm} ->
 					case gen_sctp:controlling_process(NewSocket, Fsm) of
 						ok ->
-							inet:setopts(Socket, [{active, once}]),
+							ok = inet:setopts(Socket, [{active, once}]),
 							NewFsms = Fsms#{Assoc => Fsm},
 							link(Fsm),
 							NewData = Data#statedata{fsms = NewFsms},
