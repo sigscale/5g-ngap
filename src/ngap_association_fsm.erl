@@ -123,6 +123,16 @@ active(info, {sctp, Socket, _FromAddr, _FromPort,
 	NewData = Data#statedata{peer_addr = PeerAddr, peer_port = PeerPort},
 	{next_state, active, NewData};
 active(info, {sctp, Socket, _FromAddr, _FromPort,
+		{_AncData, #sctp_paddr_change{state = AddressState,
+		assoc_id = Assoc, addr = {PeerAddr, PeerPort}}}},
+		#statedata{assoc_id = Assoc} = Data) ->
+	error_logger:warning_report(["SCTP peer address status change",
+			{module, ?MODULE}, {address, {PeerAddr, PeerPort}},
+			{state, AddressState}]),
+	ok = inet:setopts(Socket, [{active, once}]),
+	NewData = Data#statedata{peer_addr = PeerAddr, peer_port = PeerPort},
+	{next_state, active, NewData};
+active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_adaptation_event{adaptation_ind = 60, assoc_id = Assoc}}},
 		#statedata{socket = Socket, assoc_id = Assoc} = Data) ->
 	ok = inet:setopts(Socket, [{active, once}]),

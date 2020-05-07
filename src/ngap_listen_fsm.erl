@@ -135,11 +135,30 @@ listening(EventType, EventContent,
 		#statedata{assoc_sup = undefined} = Data) ->
 	listening(EventType, EventContent, get_assoc_sup(Data));
 listening(info, {sctp, Socket, FromAddr, FromPort,
-		{_AncData, #sctp_assoc_change{state = comm_up} = AssocChange}},
-		Data) ->
+		{_AncData, #sctp_assoc_change{state = comm_up,
+		assoc_id = Assoc, outbound_streams = OutStreams,
+		inbound_streams = InStreams} = AssocChange}}, Data) ->
+	error_logger:warning_report(["SCTP peer association change",
+			{module, ?MODULE}, {address, {FromAddr, FromPort}},
+			{streams, {OutStreams, InStreams}},
+			{association, Assoc}, {state, comm_up}]),
 	accept(Socket, FromAddr, FromPort, AssocChange, listening, Data);
+listening(info, {sctp, Socket, FromAddr, FromPort,
+		{_AncData, #sctp_assoc_change{state = AssocState,
+		assoc_id = Assoc, outbound_streams = OutStreams,
+		inbound_streams = InStreams}}}, Data) ->
+	error_logger:warning_report(["SCTP peer association change",
+			{module, ?MODULE}, {address, {FromAddr, FromPort}},
+			{streams, {OutStreams, InStreams}},
+			{association, Assoc}, {state, AssocState}]),
+	ok = inet:setopts(Socket, [{active, once}]),
+	{next_state, listening, Data};
 listening(info, {sctp, Socket, _FromAddr, _FromPort,
-		{_AncData, #sctp_paddr_change{}}}, Data) ->
+		{_AncData, #sctp_paddr_change{state = AddressState,
+		addr = {PeerAddr, PeerPort}, assoc_id = Assoc}}}, Data) ->
+	error_logger:warning_report(["SCTP peer address state change",
+			{module, ?MODULE}, {address, {PeerAddr, PeerPort}},
+			{association, Assoc}, {state, AddressState}]),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{next_state, listening, Data};
 listening(cast, {'M-SCTP_RELEASE', request, Ref, From},
