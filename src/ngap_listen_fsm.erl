@@ -230,11 +230,12 @@ get_assoc_sup(#statedata{sup = Sup} = Data) ->
 %% @hidden
 accept(Socket, Address, Port,
 		#sctp_assoc_change{assoc_id = Assoc} = AssocChange,
-		State, #statedata{assoc_sup = AssocSup, fsms = Fsms,
-		callback = Callback} = Data) ->
+		State, #statedata{sup = EpSup, assoc_sup = AssocSup,
+		fsms = Fsms, callback = Callback} = Data) ->
 	case gen_sctp:peeloff(Socket, Assoc) of
 		{ok, NewSocket} ->
-			case supervisor:start_child(AssocSup, [[NewSocket, Address, Port,
+			case supervisor:start_child(AssocSup,
+					[[EpSup, NewSocket, Address, Port,
 					AssocChange, self(), Callback], []]) of
 				{ok, Fsm} ->
 					case gen_sctp:controlling_process(NewSocket, Fsm) of

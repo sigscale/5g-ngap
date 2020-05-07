@@ -1,4 +1,4 @@
-%%% ngap_association_fsm.erl
+%%% ngap_stream_fsm.erl
 %%% vim: ts=3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2020 SigScale Global Inc.
@@ -16,15 +16,15 @@
 %%% limitations under the License.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @doc This {@link //stdlib/gen_statem. gen_statem} behaviour callback
-%%% 	module implements an SCTP association socket handler in the
+%%% 	module implements an SCTP stream handler in the
 %%% 	{@link //ngap. ngap} application.
 %%%
--module(ngap_association_fsm).
+-module(ngap_stream_fsm).
 -copyright('Copyright (c) 2020 SigScale Global Inc.').
 
 -behaviour(gen_statem).
 
-%% export the ngap_association_fsm API
+%% export the ngap_stream_fsm API
 -export([]).
 
 %% export the callbacks needed for gen_statem behaviour
@@ -38,25 +38,20 @@
 -type state() :: idle.
 
 -record(statedata,
-		{ep_sup :: pid(),
-		stream_sup :: undefined | pid(),
-		endpoint :: pid(),
+		{endpoint :: pid(),
 		socket :: gen_sctp:sctp_socket(),
-		assoc_id :: gen_sctp:assoc_id(),
-		callback :: {Module :: atom(), Function :: atom()},
 		peer_addr :: inet:ip_address(),
 		peer_port :: inet:port_number(),
-		in_streams :: pos_integer(),
-		out_streams :: pos_integer(),
-		streams = #{} :: #{Stream :: non_neg_integer() =>  Fsm ::pid()}}).
+		assoc_id :: gen_sctp:assoc_id(),
+		stream :: non_neg_integer()}).
 -type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
-%%  The ngap_association_fsm API
+%%  The ngap_stream_fsm API
 %%----------------------------------------------------------------------
 
 %%----------------------------------------------------------------------
-%%  The ngap_association_fsm gen_statem callbacks
+%%  The ngap_stream_fsm gen_statem callbacks
 %%----------------------------------------------------------------------
 
 -spec callback_mode() -> Result
@@ -83,19 +78,14 @@ callback_mode() ->
 %% @see //stdlib/gen_statem:init/1
 %% @private
 %%
-init([EpSup, Socket, PeerAddr, PeerPort,
-		#sctp_assoc_change{assoc_id = Assoc,
-		inbound_streams = InStreams, outbound_streams = OutStreams},
-		Endpoint, Callback]) ->
+init([Endpoint, Socket, PeerAddr, PeerPort, Assoc, Stream]) ->
 	case inet:setopts(Socket, [{active, once}]) of
 		ok ->
 			process_flag(trap_exit, true),
-			Data = #statedata{ep_sup = EpSup,
-					socket = Socket, assoc_id = Assoc,
+			Data = #statedata{socket = Socket, assoc_id = Assoc,
 					peer_addr = PeerAddr, peer_port = PeerPort,
-					in_streams = InStreams, out_streams = OutStreams,
-					endpoint = Endpoint, callback = Callback},
-			{ok, idle, Data, 0};
+					stream = Stream, endpoint = Endpoint},
+			{ok, idle, Data};
 		{error, Reason} ->
 			{stop, Reason}
 	end.
@@ -109,58 +99,14 @@ init([EpSup, Socket, PeerAddr, PeerPort,
 %% @doc Handles events received in the <em>idle</em> state.
 %% @private
 %%
-idle(timeout, _EventContent,
-		#statedata{stream_sup = undefined} = Data) ->
-	{next_state, idle, get_stream_sup(Data)};
-idle(EventType, EventContent,
-		#statedata{stream_sup = undefined} = Data) ->
-	idle(EventType, EventContent, get_stream_sup(Data));
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
-		{_AncData, #sctp_paddr_change{state = addr_confirmed,
-		assoc_id = Assoc, addr = {PeerAddr, PeerPort}}}},
-		#statedata{assoc_id = Assoc} = Data) ->
-	ok = inet:setopts(Socket, [{active, once}]),
-	NewData = Data#statedata{peer_addr = PeerAddr, peer_port = PeerPort},
-	{next_state, idle, NewData};
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
-		{_AncData, #sctp_adaptation_event{adaptation_ind = 60, assoc_id = Assoc}}},
-		#statedata{socket = Socket, assoc_id = Assoc} = Data) ->
-	ok = inet:setopts(Socket, [{active, once}]),
-	{next_state, idle, Data};
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
-		{[#sctp_sndrcvinfo{stream = Stream, ppid = 60, assoc_id = Assoc}], PDU}},
-		#statedata{socket = Socket, endpoint = Endpoint, streams = Streams,
-		assoc_id = Assoc} = Data) ->
-	case maps:find(Stream, Streams) of
-		{ok, StreamFsm} ->
-			gen_statem:cast(StreamFsm, {ngap, Endpoint, Assoc, Stream, PDU}),
-			{next_state, idle, Data};
-		error ->
-			start_stream(Stream, idle, PDU, Data)
-	end;
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
-		{_AncData, #sctp_shutdown_event{assoc_id = Assoc}}},
-		#statedata{socket = Socket, endpoint = Endpoint, assoc_id = Assoc} = Data) ->
-	{stop, {shutdown, {{Endpoint, Assoc}, shutdown}}, Data};
-idle(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc, Stream}, _Reason}}},
+idle(cast, {ngap, Endpoint, Assoc, Stream, PDU},
 		#statedata{endpoint = Endpoint, assoc_id = Assoc,
-		streams = Streams} = Data) ->
-	NewStreams = maps:remove(Stream, Streams),
-	NewData = Data#statedata{streams = NewStreams},
-	{next_state, idle, NewData};
-idle(info, {'EXIT', Pid, shutdown}, #statedata{streams = Streams} = Data) ->
-	Fdel = fun Fdel({Stream, P, _Iter}) when P ==  Pid ->
-		       Stream;
-		   Fdel({_Key, _Val, Iter}) ->
-		       Fdel(maps:next(Iter));
-		   Fdel(none) ->
-		       none
-	end,
-	Iter = maps:iterator(Streams),
-	Key = Fdel(maps:next(Iter)),
-	NewStreams = maps:remove(Key, Streams),
-	NewData = Data#statedata{streams = NewStreams},
-	{next_state, idle, NewData}.
+		stream = Stream} = Data) ->
+	{next_state, idle, Data};
+idle(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc}, shutdown}}},
+		#statedata{endpoint = Endpoint, assoc_id = Assoc,
+		stream = Stream} = Data) ->
+	{stop, {shutdown, {{Endpoint, Assoc, Stream}, shutdown}}, Data}.
 
 -spec handle_event(EventType, EventContent, State, Data) -> Result
 	when
@@ -208,29 +154,4 @@ code_change(_OldVsn, OldState, OldData, _Extra) ->
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
-
-%% @hidden
-get_stream_sup(#statedata{ep_sup = EpSup} = Data) ->
-	Children = supervisor:which_children(EpSup),
-	{_, StreamSup, _, _} = lists:keyfind(ngap_stream_sup, 1, Children),
-	Data#statedata{stream_sup = StreamSup}.
-
-%% @hidden
-start_stream(Stream, State, PDU,
-		#statedata{stream_sup = StreamSup,
-		endpoint = Endpoint, socket = Socket,
-		peer_addr = PeerAddr, peer_port = PeerPort,
-		assoc_id = Assoc, streams = Streams} = Data) ->
-	case supervisor:start_child(StreamSup,
-			[[Endpoint, Socket, PeerAddr, PeerPort, Assoc, Stream], []]) of
-		{ok, StreamFsm} ->
-			link(StreamFsm),
-			gen_statem:cast(StreamFsm, {ngap, Endpoint, Assoc, Stream, PDU}),
-			NewStreams = Streams#{Stream => StreamFsm},
-			NewData = Data#statedata{streams = NewStreams},
-			ok = inet:setopts(Socket, [{active, once}]),
-			{next_state, State, NewData};
-		{error, Reason} ->
-			{stop, {shutdown, {{Endpoint, Assoc}, Reason}}, Data}
-	end.
 

@@ -12,10 +12,12 @@ beam_DATA = ngap.beam \
 		ngap_endpoint_sup_sup.beam \
 		ngap_endpoint_sup.beam \
 		ngap_association_sup.beam \
+		ngap_stream_sup.beam \
 		ngap_context_sup.beam \
 		ngap_server.beam \
 		ngap_listen_fsm.beam \
 		ngap_association_fsm.beam \
+		ngap_stream_fsm.beam \
 		ngap_context_fsm.beam \
 		ngap_codec.beam
 

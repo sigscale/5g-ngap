@@ -1,4 +1,4 @@
-%%% ngap_endpoint_sup.erl
+%%% ngap_stream_sup.erl
 %%% vim: ts=3
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @copyright 2020 SigScale Global Inc.
@@ -17,7 +17,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% @docfile "{@docsrc supervision.edoc}"
 %%%
--module(ngap_endpoint_sup).
+-module(ngap_stream_sup).
 -copyright('Copyright (c) 2020 SigScale Global Inc.').
 
 -behaviour(supervisor).
@@ -38,42 +38,24 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([CallBack, Options] = _Args) ->
-	ChildSpecs = [statem(ngap_listen_fsm, [self(), CallBack, Options]),
-			supervisor(ngap_association_sup, []),
-			supervisor(ngap_stream_sup, [])],
-	{ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
+init([] = _Args) ->
+	ChildSpecs = [statem(ngap_stream_fsm)],
+	{ok, {{simple_one_for_one, 1, 5}, ChildSpecs}}.
 
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
 
--spec statem(StartMod, Args) -> Result
+-spec statem(StartMod) -> Result
 	when
 		StartMod :: atom(),
-		Args :: [term()],
 		Result :: supervisor:child_spec().
 %% @doc Build a supervisor child specification for a
 %% 	{@link //stdlib/gen_statem. gen_statem} behaviour.
 %% @private
 %%
-statem(StartMod, Args) ->
-	StartArgs = [StartMod, Args, []],
+statem(StartMod) ->
+	StartArgs = [StartMod],
 	StartFunc = {gen_statem, start_link, StartArgs},
-	{StartMod, StartFunc, permanent, 4000, worker, [StartMod]}.
-
--spec supervisor(StartMod, Args) -> Result
-	when
-		StartMod :: atom(),
-		Args :: [term()],
-		Result :: supervisor:child_spec().
-%% @doc Build a supervisor child specification for a
-%% 	{@link //stdlib/supervisor. supervisor} behaviour
-%% 	with registered name.
-%% @private
-%%
-supervisor(StartMod, Args) ->
-	StartArgs = [StartMod, Args],
-	StartFunc = {supervisor, start_link, StartArgs},
-	{StartMod, StartFunc, permanent, infinity, supervisor, [StartMod]}.
+	{StartMod, StartFunc, temporary, 4000, worker, [StartMod]}.
 

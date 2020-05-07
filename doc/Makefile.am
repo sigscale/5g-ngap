@@ -9,10 +9,12 @@ modhtml = ngap.html \
 			ngap_endpoint_sup_sup.html \
 			ngap_endpoint_sup.html \
 			ngap_association_sup.html \
+			ngap_stream_sup.html \
 			ngap_context_sup.html \
 			ngap_server.html \
 			ngap_listen_fsm.html \
 			ngap_association_fsm.html \
+			ngap_stream_fsm.html \
 			ngap_context_fsm.html \
 			ngap_codec.html
 
