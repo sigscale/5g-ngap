@@ -44,8 +44,7 @@
 		options :: [tuple()],
 		local_addr :: undefined | inet:ip_address(),
 		local_port :: undefined | inet:port_number(),
-		fsms = #{} :: #{Assoc :: gen_sctp:assoc_id() => Fsm :: pid()},
-		callback :: {Module :: atom(), State :: term()}}).
+		fsms = #{} :: #{Assoc :: gen_sctp:assoc_id() => Fsm :: pid()}}).
 -type statedata() :: #statedata{}.
 
 %%----------------------------------------------------------------------
@@ -80,7 +79,7 @@ callback_mode() ->
 %% @see //stdlib/gen_statem:init/1
 %% @private
 %%
-init([Sup, Callback, Opts] = _Args) ->
+init([Sup, Opts] = _Args) ->
 	Options = [{active, once}, {reuseaddr, true},
 			{sctp_events, #sctp_event_subscribe{adaptation_layer_event = true}},
 			{sctp_default_send_param, #sctp_sndrcvinfo{ppid = 60}},
@@ -95,7 +94,6 @@ init([Sup, Callback, Opts] = _Args) ->
 							{ok, {LocalAddr, LocalPort}} ->
 								process_flag(trap_exit, true),
 								StateData = #statedata{sup = Sup,
-										callback = Callback,
 										options = Options,
 										socket = Socket,
 										local_addr = LocalAddr,
@@ -250,12 +248,12 @@ get_assoc_sup(#statedata{sup = Sup} = Data) ->
 accept(Socket, Address, Port,
 		#sctp_assoc_change{assoc_id = Assoc} = AssocChange,
 		State, #statedata{sup = EpSup, assoc_sup = AssocSup,
-		fsms = Fsms, callback = Callback} = Data) ->
+		fsms = Fsms} = Data) ->
 	case gen_sctp:peeloff(Socket, Assoc) of
 		{ok, NewSocket} ->
 			case supervisor:start_child(AssocSup,
 					[[EpSup, NewSocket, Address, Port,
-					AssocChange, self(), Callback], []]) of
+					AssocChange, self()], []]) of
 				{ok, Fsm} ->
 					case gen_sctp:controlling_process(NewSocket, Fsm) of
 						ok ->

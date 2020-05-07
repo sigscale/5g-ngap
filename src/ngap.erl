@@ -22,35 +22,31 @@
 -copyright('Copyright (c) 2020 SigScale Global Inc.').
 
 %% export the ngap public API
--export([start/1, start/3, stop/1]).
+-export([start/0, start/2, stop/1]).
 
 %%----------------------------------------------------------------------
 %%  The ngap public API
 %%----------------------------------------------------------------------
 
--spec start(Callback) -> Result
+-spec start() -> Result
 	when
-		Callback :: {Module :: atom(), Function :: atom()},
 		Result :: {ok, Endpoint} | {error, Reason},
 		Endpoint :: pid(),
 		Reason :: term().
-%% @equiv start(Callback, 0, [])
-start(Callback) ->
-	start(Callback, 0, []).
+%% @equiv start(0, [])
+start() ->
+	start(0, []).
 
--spec start(Callback, Port, Options) -> Result
+-spec start(Port, Options) -> Result
 	when
 		Port :: inet:port_number(),
 		Options :: [term()],
-		Callback :: {Module :: atom(), Function :: atom()},
 		Result :: {ok, Endpoint} | {error, Reason},
 		Endpoint :: pid(),
 		Reason :: term().
 %% @doc Start an NGAP service on a new SCTP endpoint.
-start({Module, Function} = Callback, Port, Options)
-		when is_atom(Module), is_atom(Function),
-		is_integer(Port), is_list(Options) ->
-	ngap_server:start(Callback, [{port, Port} | Options]).
+start(Port, Options) when is_integer(Port), is_list(Options) ->
+	ngap_server:start([{port, Port} | Options]).
 
 -spec stop(Endpoint:: pid()) -> ok | {error, Reason :: term()}.
 %% @doc Close a previously opened endpoint.

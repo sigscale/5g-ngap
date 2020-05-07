@@ -43,7 +43,6 @@
 		endpoint :: pid(),
 		socket :: gen_sctp:sctp_socket(),
 		assoc_id :: gen_sctp:assoc_id(),
-		callback :: {Module :: atom(), Function :: atom()},
 		peer_addr :: inet:ip_address(),
 		peer_port :: inet:port_number(),
 		in_streams :: pos_integer(),
@@ -86,7 +85,7 @@ callback_mode() ->
 init([EpSup, Socket, PeerAddr, PeerPort,
 		#sctp_assoc_change{assoc_id = Assoc,
 		inbound_streams = InStreams, outbound_streams = OutStreams},
-		Endpoint, Callback]) ->
+		Endpoint]) ->
 	case inet:setopts(Socket, [{active, once}]) of
 		ok ->
 			process_flag(trap_exit, true),
@@ -94,7 +93,7 @@ init([EpSup, Socket, PeerAddr, PeerPort,
 					socket = Socket, assoc_id = Assoc,
 					peer_addr = PeerAddr, peer_port = PeerPort,
 					in_streams = InStreams, out_streams = OutStreams,
-					endpoint = Endpoint, callback = Callback},
+					endpoint = Endpoint},
 			{ok, active, Data, 0};
 		{error, Reason} ->
 			{stop, Reason}

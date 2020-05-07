@@ -25,7 +25,7 @@
 -behaviour(gen_server).
 
 %% export the ngap_server API
--export([start/2, stop/1]).
+-export([start/1, stop/1]).
 
 %% export the callbacks needed for gen_server behaviour
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -46,17 +46,16 @@
 %%  The ngap_server API
 %%----------------------------------------------------------------------
 
--spec start(Callback, Options) -> Result
+-spec start(Options) -> Result
 	when
-		Callback :: {Module :: atom(), Function :: atom()},
 		Options :: [term()],
 		Result :: {ok, EP} | {error, Reason},
 		EP :: pid(),
 		Reason :: term().
 %% @doc Open a new server end point (`EP').
 %% @private
-start(Callback, Options) when is_list(Options) ->
-	gen_server:call(ngap, {start, Callback, Options}).
+start(Options) when is_list(Options) ->
+	gen_server:call(ngap, {start, Options}).
 
 -spec stop(EP :: pid()) -> ok | {error, Reason :: term()}.
 %% @doc Close a previously opened end point (`EP').
@@ -99,9 +98,9 @@ init([Sup] = _Args) ->
 %% @see //stdlib/gen_server:handle_call/3
 %% @private
 %%
-handle_call({start, Callback, Options}, {USAP, _Tag} = _From,
+handle_call({start, Options}, {USAP, _Tag} = _From,
 		#state{ep_sup_sup = EPSupSup, eps = Endpoints} = State) ->
-	case supervisor:start_child(EPSupSup, [[Callback, Options]]) of
+	case supervisor:start_child(EPSupSup, [[Options]]) of
 		{ok, EndpointSup} ->
 			Find = fun F([{ngap_listen_fsm, EP, _, _} | _]) ->
 						EP;

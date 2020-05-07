@@ -85,14 +85,14 @@ start() ->
 	[{userdata, [{doc, "Start NGAP stack on an SCTP endpoint"}]}].
 
 start(_Config) ->
-	{ok, EP} = ngap:start({?MODULE, null}),
+	{ok, EP} = ngap:start(),
 	true = is_pid(EP).
 
 stop() ->
 	[{userdata, [{doc, "Stop NGAP stack on an SCTP endpoint"}]}].
 
 stop(_Config) ->
-	{ok, EP} = ngap:start({?MODULE, null}),
+	{ok, EP} = ngap:start(),
 	ok = ngap:stop(EP).
 
 %%---------------------------------------------------------------------

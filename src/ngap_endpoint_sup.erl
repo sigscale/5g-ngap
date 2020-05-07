@@ -38,8 +38,8 @@
 %% @see //stdlib/supervisor:init/1
 %% @private
 %%
-init([CallBack, Options] = _Args) ->
-	ChildSpecs = [statem(ngap_listen_fsm, [self(), CallBack, Options]),
+init([Options] = _Args) ->
+	ChildSpecs = [statem(ngap_listen_fsm, [self(), Options]),
 			supervisor(ngap_association_sup, []),
 			supervisor(ngap_stream_sup, [])],
 	{ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
