@@ -26,7 +26,7 @@
 -export([init_per_testcase/2, end_per_testcase/2]).
 
 %% ngap_n2_SUITE test exports
--export([ngsetup/0, ngsetup/1]).
+-export([ngsetup/0, ngsetup/1, transfer_error/0, transfer_error/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/inet_sctp.hrl").
@@ -59,7 +59,18 @@ end_per_suite(_Config) ->
 %% Initiation before each test case.
 %%
 init_per_testcase(_TestCase, Config) ->
-	Config.
+	Address = {127, 0,0, 1},
+	Port =  rand:uniform(16383) + 49152,
+	{ok, Endpoint} = ngap:start(Port, []),
+	Options = [{active, once}, {reuseaddr, true},
+			{sctp_events, #sctp_event_subscribe{adaptation_layer_event = true}},
+			{sctp_default_send_param, #sctp_sndrcvinfo{ppid = 60}},
+			{sctp_adaptation_layer, #sctp_setadaptation{adaptation_ind = 60}}],
+	{ok, Socket} = gen_sctp:open(Options),
+	{ok, #sctp_assoc_change{state = comm_up, assoc_id = Association}}
+			= gen_sctp:connect(Socket, Address, Port, []),
+	[{endpoint, Endpoint}, {address, Address}, {port, Port},
+			{socket, Socket}, {association, Association} | Config].
 
 -spec end_per_testcase(TestCase :: atom(), Config :: [tuple()]) -> any().
 %% Cleanup after each test case.
@@ -77,7 +88,7 @@ sequences() ->
 %% Returns a list of all test cases in this test suite.
 %%
 all() ->
-	[ngsetup].
+	[ngsetup, transfer_error].
 
 %%---------------------------------------------------------------------
 %%  Test cases
@@ -86,32 +97,41 @@ all() ->
 ngsetup() ->
 	[{userdata, [{doc, "NG Setup interface management request"}]}].
 
-ngsetup(_Config) ->
-	Address = {127, 0,0, 1},
-	Port =  rand:uniform(16383) + 49152,
+ngsetup(Config) ->
+	Socket = ?config(socket, Config),
+	Association = ?config(association, Config),
 	Stream = 0,
-	{ok, _EP} = ngap:start({?MODULE, null}, Port, []),
-	Options = [{active, once}, {reuseaddr, true},
-			{sctp_events, #sctp_event_subscribe{adaptation_layer_event = true}},
-			{sctp_default_send_param, #sctp_sndrcvinfo{ppid = 60}},
-			{sctp_adaptation_layer, #sctp_setadaptation{adaptation_ind = 60}}],
-	{ok, Socket} = gen_sctp:open(Options),
-	{ok, #sctp_assoc_change{state = comm_up, assoc_id = Assoc}}
-			= gen_sctp:connect(Socket, Address, Port, []),
 	NGSetupRequest = #'NGSetupRequest'{protocolIEs = []},
-	InitiatingMessage = #'InitiatingMessage'{procedureCode = 21,
+	InitiatingMessage = #'InitiatingMessage'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupRequest},
 	{ok, RequestPDU} = ngap_codec:encode('NGAP-PDU',
 			{initiatingMessage, InitiatingMessage}),
-	ok = gen_sctp:send(Socket, Assoc, Stream, RequestPDU),
+	ok = gen_sctp:send(Socket, Association, Stream, RequestPDU),
 	{ok, {_, _, [], #sctp_paddr_change{addr = {_FromAddr, _FromPort},
-			state = addr_confirmed, assoc_id = Assoc}}} = gen_sctp:recv(Socket),
-	{ok, {_, Port, #sctp_sndrcvinfo{assoc_id = Assoc, stream = Stream,
-			ppid = 60}, ResponsePDU}} = gen_sctp:recv(Socket),
+			state = addr_confirmed, assoc_id = Association}}} = gen_sctp:recv(Socket),
+	{ok, {_, _, [#sctp_sndrcvinfo{assoc_id = Association, stream = Stream,
+			ppid = 60}], ResponsePDU}} = gen_sctp:recv(Socket),
 	{ok, {successfulOutcome, SO}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
-	#'SuccessfulOutcome'{procedureCode = 21,
+	#'SuccessfulOutcome'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupResponse} = SO,
 	#'NGSetupResponse'{protocolIEs = []} = NGSetupResponse.
+
+transfer_error() ->
+	[{userdata, [{doc, "Errror indication for bad PDU"}]}].
+
+transfer_error(Config) ->
+	Socket = ?config(socket, Config),
+	Association = ?config(association, Config),
+	Stream = 0,
+	BogusPDU = <<0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0>>,
+	ok = gen_sctp:send(Socket, Association, Stream, BogusPDU),
+	{ok, {_, _, [#sctp_sndrcvinfo{}], ResponsePDU}} = gen_sctp:recv(Socket),
+	{ok, {initiatingMessage, IM}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
+	#'InitiatingMessage'{procedureCode = ?'id-ErrorIndication',
+			criticality = ignore, value = ErrorIndication} = IM,
+	#'ErrorIndication'{protocolIEs = [ProtocolIE]} = ErrorIndication,
+	#'ProtocolIE-Field'{id = ?'id-Cause', criticality = ignore,
+			value = {protocol, 'transfer-syntax-error'}} = ProtocolIE.
 
 %%---------------------------------------------------------------------
 %%  Internal functions

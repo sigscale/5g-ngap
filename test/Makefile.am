@@ -11,7 +11,7 @@ testmods = ngap_api_SUITE \
 check_DATA = .dialyzer_ok .common_test_ok
 
 .dialyzer_ok:	$(addsuffix .beam, $(testmods))
-	dialyzer --src $(top_srcdir)/src
+	dialyzer -I ../src --src $(top_srcdir)/src
 
 %.beam:$(top_srcdir)/test/%.erl
 	$(ERLC) -pa $(top_builddir)/ebin $(ERLCFLAGS) $<

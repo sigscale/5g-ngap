@@ -34,6 +34,7 @@
 -export([active/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
+-include("ngap_codec.hrl").
 
 -type state() :: active.
 
@@ -100,9 +101,28 @@ init([Endpoint, Socket, PeerAddr, PeerPort, Assoc, Stream]) ->
 %% @private
 %%
 active(cast, {ngap, Endpoint, Assoc, Stream, PDU},
-		#statedata{endpoint = Endpoint, assoc_id = Assoc,
-		stream = Stream} = Data) ->
-	{next_state, active, Data};
+		#statedata{endpoint = Endpoint, socket = Socket,
+		assoc_id = Assoc, stream = Stream} = Data) ->
+	case ngap_codec:decode('NGAP-PDU', PDU) of
+		{ok, {initiatingMessage, InitiatingMessage}} ->
+			initiating(InitiatingMessage, Data);
+		{ok, {successfulOutcome, SuccessfulOutcome}} ->
+			successful(SuccessfulOutcome, Data);
+		{ok, {unsuccessfulOutcome, UnsuccessfulOutcome}} ->
+			unsuccessful(UnsuccessfulOutcome, Data);
+		_ ->
+			Cause = {protocol, 'transfer-syntax-error'},
+			ProtocolIE = #'ProtocolIE-Field'{id = ?'id-Cause',
+					criticality = ignore, value = Cause},
+			ErrorIndication = #'ErrorIndication'{protocolIEs = [ProtocolIE]},
+			InitiatingMessage = #'InitiatingMessage'{
+					procedureCode = ?'id-ErrorIndication',
+					criticality = ignore, value = ErrorIndication},
+			{ok, ResponsePDU} = ngap_codec:encode('NGAP-PDU',
+					{initiatingMessage, InitiatingMessage}),
+			ok = gen_sctp:send(Socket, Assoc, Stream, ResponsePDU),
+			{next_state, active, Data}
+	end;
 active(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc}, shutdown}}},
 		#statedata{endpoint = Endpoint, assoc_id = Assoc,
 		stream = Stream} = Data) ->
@@ -124,7 +144,7 @@ handle_event(_EventType, _EventContent, State, Data) ->
 -spec terminate(Reason, State, Data) -> any()
 	when
 		Reason :: normal | shutdown | {shutdown, term()} | term(),
-      State :: state(),
+		State :: state(),
 		Data ::  statedata().
 %% @doc Cleanup and exit.
 %% @see //stdlib/gen_statem:terminate/3
@@ -154,4 +174,16 @@ code_change(_OldVsn, OldState, OldData, _Extra) ->
 %%----------------------------------------------------------------------
 %%  internal functions
 %%----------------------------------------------------------------------
+
+%% @hidden
+initiating(InitiatingMessage, Data) ->
+	{next_state, active, Data}.
+
+%% @hidden
+successful(SuccessfulOutcome, Data) ->
+	{next_state, active, Data}.
+
+%% @hidden
+unsuccessful(UnsuccessfulOutcome, Data) ->
+	{next_state, active, Data}.
 
