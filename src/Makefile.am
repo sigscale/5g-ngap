@@ -10,5 +10,5 @@ ngap_codec.hrl: ngap_codec.erl
 ngap_codec.erl:	$(top_srcdir)/asn_src/ngap_codec.set.asn1
 	$(ERLC) $(ERLCFLAGS) +noobj $<
 
-CLEANFILES = $(erl_DATA) ngap_codec.asn1db ngap_codec.hrl
+CLEANFILES = $(noinst_DATA) ngap_codec.asn1db ngap_codec.hrl
 
