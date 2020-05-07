@@ -87,7 +87,9 @@ ngsetup() ->
 	[{userdata, [{doc, "NG Setup interface management request"}]}].
 
 ngsetup(_Config) ->
+	Address = {127, 0,0, 1},
 	Port =  rand:uniform(16383) + 49152,
+	Stream = 0,
 	{ok, _EP} = ngap:start({?MODULE, null}, Port, []),
 	Options = [{active, once}, {reuseaddr, true},
 			{sctp_events, #sctp_event_subscribe{adaptation_layer_event = true}},
@@ -95,13 +97,21 @@ ngsetup(_Config) ->
 			{sctp_adaptation_layer, #sctp_setadaptation{adaptation_ind = 60}}],
 	{ok, Socket} = gen_sctp:open(Options),
 	{ok, #sctp_assoc_change{state = comm_up, assoc_id = Assoc}}
-			= gen_sctp:connect(Socket, {127, 0,0, 1}, Port, []),
+			= gen_sctp:connect(Socket, Address, Port, []),
 	NGSetupRequest = #'NGSetupRequest'{protocolIEs = []},
 	InitiatingMessage = #'InitiatingMessage'{procedureCode = 21,
 			criticality = reject, value = NGSetupRequest},
-	{ok, PDU} = ngap_codec:encode('NGAP-PDU',
+	{ok, RequestPDU} = ngap_codec:encode('NGAP-PDU',
 			{initiatingMessage, InitiatingMessage}),
-	ok = gen_sctp:send(Socket, Assoc, 0, PDU).
+	ok = gen_sctp:send(Socket, Assoc, Stream, RequestPDU),
+	{ok, {_, _, [], #sctp_paddr_change{addr = {_FromAddr, _FromPort},
+			state = addr_confirmed, assoc_id = Assoc}}} = gen_sctp:recv(Socket),
+	{ok, {_, Port, #sctp_sndrcvinfo{assoc_id = Assoc, stream = Stream,
+			ppid = 60}, ResponsePDU}} = gen_sctp:recv(Socket),
+	{ok, {successfulOutcome, SO}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
+	#'SuccessfulOutcome'{procedureCode = 21,
+			criticality = reject, value = NGSetupResponse} = SO,
+	#'NGSetupResponse'{protocolIEs = []} = NGSetupResponse.
 
 %%---------------------------------------------------------------------
 %%  Internal functions
