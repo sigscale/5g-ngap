@@ -31,11 +31,11 @@
 -export([init/1, handle_event/4, callback_mode/0,
 			terminate/3, code_change/4]).
 %% export the callbacks for gen_statem states. 
--export([idle/3]).
+-export([active/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
 
--type state() :: idle.
+-type state() :: active.
 
 -record(statedata,
 		{endpoint :: pid(),
@@ -85,25 +85,25 @@ init([Endpoint, Socket, PeerAddr, PeerPort, Assoc, Stream]) ->
 			Data = #statedata{socket = Socket, assoc_id = Assoc,
 					peer_addr = PeerAddr, peer_port = PeerPort,
 					stream = Stream, endpoint = Endpoint},
-			{ok, idle, Data};
+			{ok, active, Data};
 		{error, Reason} ->
 			{stop, Reason}
 	end.
 
--spec idle(EventType, EventContent, Data) -> Result
+-spec active(EventType, EventContent, Data) -> Result
 	when
 		EventType :: gen_statem:event_type(),
 		EventContent :: term(),
 		Data :: statedata(),
 		Result :: gen_statem:event_handler_result(state()).
-%% @doc Handles events received in the <em>idle</em> state.
+%% @doc Handles events received in the <em>active</em> state.
 %% @private
 %%
-idle(cast, {ngap, Endpoint, Assoc, Stream, PDU},
+active(cast, {ngap, Endpoint, Assoc, Stream, PDU},
 		#statedata{endpoint = Endpoint, assoc_id = Assoc,
 		stream = Stream} = Data) ->
-	{next_state, idle, Data};
-idle(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc}, shutdown}}},
+	{next_state, active, Data};
+active(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc}, shutdown}}},
 		#statedata{endpoint = Endpoint, assoc_id = Assoc,
 		stream = Stream} = Data) ->
 	{stop, {shutdown, {{Endpoint, Assoc, Stream}, shutdown}}, Data}.

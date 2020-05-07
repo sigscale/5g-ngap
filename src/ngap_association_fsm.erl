@@ -31,11 +31,11 @@
 -export([init/1, handle_event/4, callback_mode/0,
 			terminate/3, code_change/4]).
 %% export the callbacks for gen_statem states. 
--export([idle/3]).
+-export([active/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
 
--type state() :: idle.
+-type state() :: active.
 
 -record(statedata,
 		{ep_sup :: pid(),
@@ -95,60 +95,60 @@ init([EpSup, Socket, PeerAddr, PeerPort,
 					peer_addr = PeerAddr, peer_port = PeerPort,
 					in_streams = InStreams, out_streams = OutStreams,
 					endpoint = Endpoint, callback = Callback},
-			{ok, idle, Data, 0};
+			{ok, active, Data, 0};
 		{error, Reason} ->
 			{stop, Reason}
 	end.
 
--spec idle(EventType, EventContent, Data) -> Result
+-spec active(EventType, EventContent, Data) -> Result
 	when
 		EventType :: gen_statem:event_type(),
 		EventContent :: term(),
 		Data :: statedata(),
 		Result :: gen_statem:event_handler_result(state()).
-%% @doc Handles events received in the <em>idle</em> state.
+%% @doc Handles events received in the <em>active</em> state.
 %% @private
 %%
-idle(timeout, _EventContent,
+active(timeout, _EventContent,
 		#statedata{stream_sup = undefined} = Data) ->
-	{next_state, idle, get_stream_sup(Data)};
-idle(EventType, EventContent,
+	{next_state, active, get_stream_sup(Data)};
+active(EventType, EventContent,
 		#statedata{stream_sup = undefined} = Data) ->
-	idle(EventType, EventContent, get_stream_sup(Data));
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
+	active(EventType, EventContent, get_stream_sup(Data));
+active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_paddr_change{state = addr_confirmed,
 		assoc_id = Assoc, addr = {PeerAddr, PeerPort}}}},
 		#statedata{assoc_id = Assoc} = Data) ->
 	ok = inet:setopts(Socket, [{active, once}]),
 	NewData = Data#statedata{peer_addr = PeerAddr, peer_port = PeerPort},
-	{next_state, idle, NewData};
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
+	{next_state, active, NewData};
+active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_adaptation_event{adaptation_ind = 60, assoc_id = Assoc}}},
 		#statedata{socket = Socket, assoc_id = Assoc} = Data) ->
 	ok = inet:setopts(Socket, [{active, once}]),
-	{next_state, idle, Data};
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
+	{next_state, active, Data};
+active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{[#sctp_sndrcvinfo{stream = Stream, ppid = 60, assoc_id = Assoc}], PDU}},
 		#statedata{socket = Socket, endpoint = Endpoint, streams = Streams,
 		assoc_id = Assoc} = Data) ->
 	case maps:find(Stream, Streams) of
 		{ok, StreamFsm} ->
 			gen_statem:cast(StreamFsm, {ngap, Endpoint, Assoc, Stream, PDU}),
-			{next_state, idle, Data};
+			{next_state, active, Data};
 		error ->
-			start_stream(Stream, idle, PDU, Data)
+			start_stream(Stream, active, PDU, Data)
 	end;
-idle(info, {sctp, Socket, _FromAddr, _FromPort,
+active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_shutdown_event{assoc_id = Assoc}}},
 		#statedata{socket = Socket, endpoint = Endpoint, assoc_id = Assoc} = Data) ->
 	{stop, {shutdown, {{Endpoint, Assoc}, shutdown}}, Data};
-idle(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc, Stream}, _Reason}}},
+active(info, {'EXIT', _Pid, {shutdown, {{Endpoint, Assoc, Stream}, _Reason}}},
 		#statedata{endpoint = Endpoint, assoc_id = Assoc,
 		streams = Streams} = Data) ->
 	NewStreams = maps:remove(Stream, Streams),
 	NewData = Data#statedata{streams = NewStreams},
-	{next_state, idle, NewData};
-idle(info, {'EXIT', Pid, shutdown}, #statedata{streams = Streams} = Data) ->
+	{next_state, active, NewData};
+active(info, {'EXIT', Pid, shutdown}, #statedata{streams = Streams} = Data) ->
 	Fdel = fun Fdel({Stream, P, _Iter}) when P ==  Pid ->
 		       Stream;
 		   Fdel({_Key, _Val, Iter}) ->
@@ -160,7 +160,7 @@ idle(info, {'EXIT', Pid, shutdown}, #statedata{streams = Streams} = Data) ->
 	Key = Fdel(maps:next(Iter)),
 	NewStreams = maps:remove(Key, Streams),
 	NewData = Data#statedata{streams = NewStreams},
-	{next_state, idle, NewData}.
+	{next_state, active, NewData}.
 
 -spec handle_event(EventType, EventContent, State, Data) -> Result
 	when
