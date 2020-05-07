@@ -87,7 +87,7 @@ encode() ->
 
 encode(_Config) ->
 	NGSetupRequest = #'NGSetupRequest'{protocolIEs = []},
-	InitiatingMessage = #'InitiatingMessage'{procedureCode = 21,
+	InitiatingMessage = #'InitiatingMessage'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupRequest},
 	{ok, PDU} = ngap_codec:encode('NGAP-PDU',
 			{initiatingMessage, InitiatingMessage}),
@@ -99,7 +99,7 @@ decode() ->
 decode(_Config) ->
 	PDU = <<160,12,128,1,21,129,1,0,130,4,48,2,160,0>>,
 	{ok, {initiatingMessage, IM}} = ngap_codec:decode('NGAP-PDU', PDU),
-	#'InitiatingMessage'{procedureCode = 21,
+	#'InitiatingMessage'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupRequest} = IM,
 	#'NGSetupRequest'{protocolIEs = []} = NGSetupRequest.
 
