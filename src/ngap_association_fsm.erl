@@ -105,7 +105,16 @@ init([Socket, PeerAddr, PeerPort,
 %% @doc Handles events received in the <em>idle</em> state.
 %% @private
 %%
-idle(_EventType, _EventContent, Data) ->
+idle(info, {sctp, Socket, FromAddr, FromPort,
+		{_AncData, #sctp_adaptation_event{adaptation_ind = 60, assoc_id = Assoc}}},
+		#statedata{socket = Socket, peer_addr = FromAddr,
+		peer_port = FromPort, assoc_id = Assoc} = Data) ->
+	ok = inet:setopts(Socket, [{active, once}]),
+	{next_state, idle, Data};
+idle(info, {sctp, Socket, FromAddr, FromPort,
+		{[#sctp_sndrcvinfo{stream = 0, ppid = 60, assoc_id = Assoc}], PDU}},
+		#statedata{socket = Socket, peer_addr = FromAddr,
+		peer_port = FromPort, assoc_id = Assoc} = Data) ->
 	{next_state, idle, Data}.
 
 -spec handle_event(EventType, EventContent, State, Data) -> Result
