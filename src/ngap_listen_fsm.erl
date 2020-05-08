@@ -136,7 +136,7 @@ listening(info, {sctp, Socket, FromAddr, FromPort,
 		{_AncData, #sctp_assoc_change{state = comm_up,
 		assoc_id = Assoc, outbound_streams = OutStreams,
 		inbound_streams = InStreams} = AssocChange}}, Data) ->
-	error_logger:warning_report(["SCTP peer association change",
+	error_logger:info_report(["SCTP peer association change",
 			{module, ?MODULE}, {address, {FromAddr, FromPort}},
 			{streams, {OutStreams, InStreams}},
 			{association, Assoc}, {state, comm_up}]),
