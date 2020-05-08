@@ -112,9 +112,11 @@ active(cast, {ngap, Endpoint, Assoc, Stream, PDU},
 			unsuccessful(UnsuccessfulOutcome, Data);
 		_ ->
 			Cause = {protocol, 'transfer-syntax-error'},
-			ProtocolIE = #'ProtocolIE-Field'{id = ?'id-Cause',
+			CauseIE = #'ProtocolIE-Field'{id = ?'id-Cause',
 					criticality = ignore, value = Cause},
-			ErrorIndication = #'ErrorIndication'{protocolIEs = [ProtocolIE]},
+			ErrorIndication = #'ErrorIndication'{
+					% @todo add criticality diagnostics
+					protocolIEs = [CauseIE]},
 			InitiatingMessage = #'InitiatingMessage'{
 					procedureCode = ?'id-ErrorIndication',
 					criticality = ignore, value = ErrorIndication},
@@ -176,8 +178,67 @@ code_change(_OldVsn, OldState, OldData, _Extra) ->
 %%----------------------------------------------------------------------
 
 %% @hidden
-initiating(InitiatingMessage, Data) ->
-	{next_state, active, Data}.
+initiating(#'InitiatingMessage'{procedureCode = ?'id-NGSetup',
+		criticality = reject,
+		value = #'NGSetupRequest'{protocolIEs = RequestIEs}},
+		#statedata{socket = Socket, assoc_id = Assoc,
+		stream = Stream} = Data) ->
+	try
+		#'ProtocolIE-Field'{value = _GlobalRANNodeID} = lists:keyfind(
+				?'id-GlobalRANNodeID', #'ProtocolIE-Field'.id, RequestIEs),
+		#'ProtocolIE-Field'{value = SupportedTAList} = lists:keyfind(
+				?'id-SupportedTAList', #'ProtocolIE-Field'.id, RequestIEs),
+		#'ProtocolIE-Field'{value = _DefaultPagingDRX} = lists:keyfind(
+				?'id-DefaultPagingDRX', #'ProtocolIE-Field'.id, RequestIEs),
+		SupportedTAList
+	of
+		TAs ->
+			{ok, AmfName} = application:get_env(name),
+			AMFNameIE = #'ProtocolIE-Field'{id = ?'id-AMFName',
+						criticality = reject, value = AmfName},
+			{ok, GUAMIs} = application:get_env(guami),
+			F = fun(<<AMFPlmn:3/bytes, AMFRegion:1/bytes,
+						AMFSet:10/bits, AMFPointer:6/bits>>) ->
+					#'ServedGUAMIItem'{gUAMI = #'GUAMI'{pLMNIdentity = AMFPlmn,
+					aMFRegionID = AMFRegion, aMFSetID = AMFSet,
+					aMFPointer = AMFPointer}}
+			end,
+			ServedGUAMIIE = #'ProtocolIE-Field'{id = ?'id-ServedGUAMIList',
+					criticality = reject,
+					value = lists:map(F, GUAMIs)},
+			{ok, Capacity} = application:get_env(capacity),
+			CapacityIE = #'ProtocolIE-Field'{id = ?'id-RelativeAMFCapacity',
+						criticality = ignore, value = Capacity},
+			BroadcastPLMNs = lists:flatten([B ||
+					#'SupportedTAItem'{broadcastPLMNList = B} <- TAs]),
+			{ok, AmfPlmns} = application:get_env(plmn),
+			PLMNSupportList = plmn_support(AmfPlmns, BroadcastPLMNs),
+			PLMNSupportIE = #'ProtocolIE-Field'{id = ?'id-PLMNSupportList',
+						criticality = reject, value = PLMNSupportList},
+			NGSetupResponse = #'NGSetupResponse'{protocolIEs
+					= [AMFNameIE, ServedGUAMIIE, CapacityIE, PLMNSupportIE]},
+			SuccessfulOutcome = #'SuccessfulOutcome'{
+					procedureCode = ?'id-NGSetup',
+					criticality = reject, value = NGSetupResponse},
+			{ok, ResponsePDU} = ngap_codec:encode('NGAP-PDU',
+					{successfulOutcome, SuccessfulOutcome}),
+			ok = gen_sctp:send(Socket, Assoc, Stream, ResponsePDU),
+			{next_state, active, Data}
+	catch
+		_:_Reason ->
+			Cause = {protocol, 'abstract-syntax-error-reject'},
+			CauseIE = #'ProtocolIE-Field'{id = ?'id-Cause',
+					criticality = ignore, value = Cause},
+			NGSetupFailure = #'NGSetupFailure'{protocolIEs = [CauseIE]},
+			UnsuccessfulOutcome = #'UnsuccessfulOutcome'{
+					procedureCode = ?'id-NGSetup',
+					% @todo add criticality diagnostics
+					criticality = reject, value = NGSetupFailure},
+			{ok, FailurePDU} = ngap_codec:encode('NGAP-PDU',
+					{unsuccessfulOutcome, UnsuccessfulOutcome}),
+			ok = gen_sctp:send(Socket, Assoc, Stream, FailurePDU),
+			{next_state, active, Data}
+	end.
 
 %% @hidden
 successful(SuccessfulOutcome, Data) ->
@@ -186,4 +247,36 @@ successful(SuccessfulOutcome, Data) ->
 %% @hidden
 unsuccessful(UnsuccessfulOutcome, Data) ->
 	{next_state, active, Data}.
+
+-spec plmn_support(AmfPlmns, AnPlmns) -> PlmnSupport
+	when
+		AmfPlmns :: [{PLMNIdentity :: binary(), [SNSSAI :: binary()]}],
+		AnPlmns :: [#'BroadcastPLMNItem'{}],
+		PlmnSupport :: [#'PLMNSupportItem'{}].
+%% @doc Return the intersection of AN and AMF PLMN lists.
+%% @private
+plmn_support(AmfPlmns, AnPlmns)
+		when length(AmfPlmns) =< ?maxnoofBPLMNs,
+		length(AnPlmns) =< ?maxnoofBPLMNs->
+	plmn_support(AmfPlmns, AnPlmns, []).
+%% @hidden
+plmn_support([{PLMNIdentity, SNSSAIs} | T] = _AmfPlmns, AnPlmns, Acc) ->
+	case lists:keymember(PLMNIdentity,
+			#'BroadcastPLMNItem'.pLMNIdentity, AnPlmns) of
+		true ->
+			F = fun(<<SST:1/bytes>>) ->
+						#'SliceSupportItem'{'s-NSSAI'
+								= #'S-NSSAI'{sST = SST}};
+					(<<SST:1/bytes, SD:3/bytes>>) ->
+						#'SliceSupportItem'{'s-NSSAI'
+								= #'S-NSSAI'{sST = SST, sD = SD}}
+			end,
+			PLMNSupportItem = #'PLMNSupportItem'{pLMNIdentity = PLMNIdentity,
+					sliceSupportList = lists:map(F, SNSSAIs)},
+			plmn_support(T, AnPlmns, [PLMNSupportItem | Acc]);
+		false ->
+			plmn_support(T, AnPlmns, Acc)
+	end;
+plmn_support([], _, Acc) ->
+	lists:reverse(Acc).
 
