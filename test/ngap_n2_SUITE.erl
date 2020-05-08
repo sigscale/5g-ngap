@@ -129,9 +129,9 @@ transfer_error(Config) ->
 	{ok, {initiatingMessage, IM}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
 	#'InitiatingMessage'{procedureCode = ?'id-ErrorIndication',
 			criticality = ignore, value = ErrorIndication} = IM,
-	#'ErrorIndication'{protocolIEs = [ProtocolIE]} = ErrorIndication,
+	#'ErrorIndication'{protocolIEs = [CauseIE]} = ErrorIndication,
 	#'ProtocolIE-Field'{id = ?'id-Cause', criticality = ignore,
-			value = {protocol, 'transfer-syntax-error'}} = ProtocolIE.
+			value = {protocol, 'transfer-syntax-error'}} = CauseIE.
 
 %%---------------------------------------------------------------------
 %%  Internal functions

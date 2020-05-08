@@ -112,9 +112,9 @@ active(cast, {ngap, Endpoint, Assoc, Stream, PDU},
 			unsuccessful(UnsuccessfulOutcome, Data);
 		_ ->
 			Cause = {protocol, 'transfer-syntax-error'},
-			ProtocolIE = #'ProtocolIE-Field'{id = ?'id-Cause',
+			CauseIE = #'ProtocolIE-Field'{id = ?'id-Cause',
 					criticality = ignore, value = Cause},
-			ErrorIndication = #'ErrorIndication'{protocolIEs = [ProtocolIE]},
+			ErrorIndication = #'ErrorIndication'{protocolIEs = [CauseIE]},
 			InitiatingMessage = #'InitiatingMessage'{
 					procedureCode = ?'id-ErrorIndication',
 					criticality = ignore, value = ErrorIndication},
