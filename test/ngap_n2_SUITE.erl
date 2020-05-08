@@ -26,7 +26,8 @@
 -export([init_per_testcase/2, end_per_testcase/2]).
 
 %% ngap_n2_SUITE test exports
--export([ngsetup/0, ngsetup/1, transfer_error/0, transfer_error/1]).
+-export([ngsetup/0, ngsetup/1, transfer_error/0, transfer_error/1,
+		abstract_error/0, abstract_error/1]).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/inet_sctp.hrl").
@@ -88,7 +89,7 @@ sequences() ->
 %% Returns a list of all test cases in this test suite.
 %%
 all() ->
-	[ngsetup, transfer_error].
+	[ngsetup, transfer_error, abstract_error].
 
 %%---------------------------------------------------------------------
 %%  Test cases
@@ -142,6 +143,28 @@ transfer_error(Config) ->
 	#'ProtocolIE-Field'{value = {protocol, 'transfer-syntax-error'},
 			criticality = ignore} = lists:keyfind(?'id-Cause',
 			#'ProtocolIE-Field'.id, RequestIEs).
+
+abstract_error() ->
+	[{userdata, [{doc, "Errror indication for missing mandatory IEs"}]}].
+
+abstract_error(Config) ->
+	Socket = ?config(socket, Config),
+	Association = ?config(association, Config),
+	Stream = 0,
+	NGSetupRequest = #'NGSetupRequest'{protocolIEs = []},
+	InitiatingMessage = #'InitiatingMessage'{procedureCode = ?'id-NGSetup',
+			criticality = reject, value = NGSetupRequest},
+	{ok, RequestPDU} = ngap_codec:encode('NGAP-PDU',
+			{initiatingMessage, InitiatingMessage}),
+	ok = gen_sctp:send(Socket, Association, Stream, RequestPDU),
+	{ok, {_, _, [#sctp_sndrcvinfo{}], ResponsePDU}} = sctp_response(Socket),
+	{ok, {unsuccessfulOutcome, UO}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
+	#'UnsuccessfulOutcome'{procedureCode = ?'id-NGSetup',
+			criticality = reject, value = NGSetupFailure} = UO,
+	#'NGSetupFailure'{protocolIEs = FailureIEs} = NGSetupFailure,
+	#'ProtocolIE-Field'{value = {protocol, 'abstract-syntax-error-reject'},
+			criticality = ignore} = lists:keyfind(?'id-Cause',
+			#'ProtocolIE-Field'.id, FailureIEs).
 
 %%---------------------------------------------------------------------
 %%  Internal functions
