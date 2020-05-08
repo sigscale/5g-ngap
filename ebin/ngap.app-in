@@ -18,5 +18,11 @@
 				ngap_codec]},
 		{registered, [ngap]},
 		{applications, [asn1]},
-		{env, []},
+		{env,
+				[{name, "myAMF"},
+				{guami, [<<0,16,1,1,0,0>>]}, % GUAMI
+				{plmn,
+						[{<<0,16,1>>,  % PLMN Identity (BCD)
+						[<<1:8>>]}]},    % S-NSSAI (8 | 32 bits)
+				{capacity, 255}]},   % Relative capacity (0-255)
 		{mod, {ngap_app, []}}]}.

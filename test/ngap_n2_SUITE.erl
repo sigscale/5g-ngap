@@ -101,20 +101,29 @@ ngsetup(Config) ->
 	Socket = ?config(socket, Config),
 	Association = ?config(association, Config),
 	Stream = 0,
-	NGSetupRequest = #'NGSetupRequest'{protocolIEs = []},
+	PlmnIdentity = plmn_identity(),
+	NGSetupRequest = #'NGSetupRequest'{
+			protocolIEs = [global_ran_node_id(PlmnIdentity),
+			supported_ta_list(PlmnIdentity), paging_drx()]},
 	InitiatingMessage = #'InitiatingMessage'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupRequest},
 	{ok, RequestPDU} = ngap_codec:encode('NGAP-PDU',
 			{initiatingMessage, InitiatingMessage}),
 	ok = gen_sctp:send(Socket, Association, Stream, RequestPDU),
-	{ok, {_, _, [], #sctp_paddr_change{addr = {_FromAddr, _FromPort},
-			state = addr_confirmed, assoc_id = Association}}} = gen_sctp:recv(Socket),
 	{ok, {_, _, [#sctp_sndrcvinfo{assoc_id = Association, stream = Stream,
-			ppid = 60}], ResponsePDU}} = gen_sctp:recv(Socket),
+			ppid = 60}], ResponsePDU}} = sctp_response(Socket),
 	{ok, {successfulOutcome, SO}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
 	#'SuccessfulOutcome'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupResponse} = SO,
-	#'NGSetupResponse'{protocolIEs = []} = NGSetupResponse.
+	#'NGSetupResponse'{protocolIEs = ResponseIEs} = NGSetupResponse,
+	#'ProtocolIE-Field'{value = _AMFName, criticality = reject}
+			= lists:keyfind(?'id-AMFName', #'ProtocolIE-Field'.id, ResponseIEs),
+	#'ProtocolIE-Field'{value = _ServedGUAMIList, criticality = reject}
+			= lists:keyfind(?'id-ServedGUAMIList', #'ProtocolIE-Field'.id, ResponseIEs),
+	#'ProtocolIE-Field'{value = _RelativeAMFCapacity, criticality = ignore}
+			= lists:keyfind(?'id-RelativeAMFCapacity', #'ProtocolIE-Field'.id, ResponseIEs),
+	#'ProtocolIE-Field'{value = _PLMNSupportList, criticality = reject}
+			= lists:keyfind(?'id-PLMNSupportList', #'ProtocolIE-Field'.id, ResponseIEs).
 
 transfer_error() ->
 	[{userdata, [{doc, "Errror indication for bad PDU"}]}].
@@ -125,15 +134,65 @@ transfer_error(Config) ->
 	Stream = 0,
 	BogusPDU = <<0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0>>,
 	ok = gen_sctp:send(Socket, Association, Stream, BogusPDU),
-	{ok, {_, _, [#sctp_sndrcvinfo{}], ResponsePDU}} = gen_sctp:recv(Socket),
+	{ok, {_, _, [#sctp_sndrcvinfo{}], ResponsePDU}} = sctp_response(Socket),
 	{ok, {initiatingMessage, IM}} = ngap_codec:decode('NGAP-PDU', ResponsePDU),
 	#'InitiatingMessage'{procedureCode = ?'id-ErrorIndication',
 			criticality = ignore, value = ErrorIndication} = IM,
-	#'ErrorIndication'{protocolIEs = [CauseIE]} = ErrorIndication,
-	#'ProtocolIE-Field'{id = ?'id-Cause', criticality = ignore,
-			value = {protocol, 'transfer-syntax-error'}} = CauseIE.
+	#'ErrorIndication'{protocolIEs = RequestIEs} = ErrorIndication,
+	#'ProtocolIE-Field'{value = {protocol, 'transfer-syntax-error'},
+			criticality = ignore} = lists:keyfind(?'id-Cause',
+			#'ProtocolIE-Field'.id, RequestIEs).
 
 %%---------------------------------------------------------------------
 %%  Internal functions
 %%---------------------------------------------------------------------
+
+plmn_identity() ->
+	MCC = [0, 0, 1],
+	MNC = [0, 0, 1],
+	<< <<N:4>> || N <- MCC ++ MNC >>.
+
+tac() ->
+	TAC = rand:uniform(16777214),
+	<<TAC:24>>.
+
+gnbid(Length) when Length >= 22, Length =< 32 ->
+	GnbID = rand:uniform(4294967296) - 1,
+	<<GnbID:Length>>.
+
+global_ran_node_id(PlmnIdentity) ->
+	GNBIDLength = rand:uniform(11) + 21,
+	GnbId = gnbid(GNBIDLength),
+	GlobalGnbId = #'GlobalGNB-ID'{pLMNIdentity = PlmnIdentity,
+			'gNB-ID' = {'gNB-ID', GnbId}},
+	#'ProtocolIE-Field'{id = ?'id-GlobalRANNodeID',
+			criticality = reject,
+			value = {'globalGNB-ID', GlobalGnbId}}.
+
+supported_ta_list(PlmnIdentity) ->
+	SNSSAI = #'S-NSSAI'{'sST' = <<1:8>>},
+	SliceSupport = #'SliceSupportItem'{'s-NSSAI' = SNSSAI},
+	BroadcastPLMN =  #'BroadcastPLMNItem'{pLMNIdentity = PlmnIdentity,
+			tAISliceSupportList = [SliceSupport]},
+	SupportedTA = #'SupportedTAItem'{tAC = tac(),
+			broadcastPLMNList = [BroadcastPLMN]},
+	#'ProtocolIE-Field'{id = ?'id-SupportedTAList',
+			criticality = reject, value = [SupportedTA]}.
+
+paging_drx() ->
+	#'ProtocolIE-Field'{id = ?'id-DefaultPagingDRX',
+			criticality = ignore, value = v32}.
+
+sctp_response(Socket) ->
+	case gen_sctp:recv(Socket) of
+		{ok, {_, _, [], #sctp_paddr_change{addr = {Address, Port},
+				state = State, assoc_id = Association}}} ->
+			ct:pal(?LOW_IMPORTANCE, "=SCTP Peer Address Change===~n"
+					"~tstate: ~w~n~tsocket: ~w~n~taddress: ~w~n"
+					"~tport: ~w~n~tassociation: ~w~n",
+					[State, Socket, Address, Port, Association]),
+			sctp_response(Socket);
+		Other ->
+			Other
+	end.
 
