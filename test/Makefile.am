@@ -14,7 +14,7 @@ check_DATA = .dialyzer_ok .common_test_ok
 	dialyzer -I ../src --src $(top_srcdir)/src
 
 %.beam:$(top_srcdir)/test/%.erl
-	$(ERLC) -pa $(top_builddir)/ebin $(ERLCFLAGS) $<
+	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src $<
 
 .common_test_ok:	$(addsuffix .beam, $(testmods))
 	@if [ ! -d log ]; then mkdir log; fi
