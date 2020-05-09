@@ -117,14 +117,14 @@ ngsetup(Config) ->
 	#'SuccessfulOutcome'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupResponse} = SO,
 	#'NGSetupResponse'{protocolIEs = ResponseIEs} = NGSetupResponse,
-	#'ProtocolIE-Field'{value = _AMFName, criticality = reject}
-			= lists:keyfind(?'id-AMFName', #'ProtocolIE-Field'.id, ResponseIEs),
-	#'ProtocolIE-Field'{value = _ServedGUAMIList, criticality = reject}
-			= lists:keyfind(?'id-ServedGUAMIList', #'ProtocolIE-Field'.id, ResponseIEs),
-	#'ProtocolIE-Field'{value = _RelativeAMFCapacity, criticality = ignore}
-			= lists:keyfind(?'id-RelativeAMFCapacity', #'ProtocolIE-Field'.id, ResponseIEs),
-	#'ProtocolIE-Field'{value = _PLMNSupportList, criticality = reject}
-			= lists:keyfind(?'id-PLMNSupportList', #'ProtocolIE-Field'.id, ResponseIEs).
+	[#'ProtocolIE-Field'{id = ?'id-AMFName', value = _AMFName,
+			criticality = reject} | T1] = ResponseIEs,
+	[#'ProtocolIE-Field'{id = ?'id-ServedGUAMIList',
+			value = _ServedGUAMIList, criticality = reject} | T2]  = T1,
+	[#'ProtocolIE-Field'{id = ?'id-RelativeAMFCapacity',
+			value = _RelativeAMFCapacity, criticality = ignore} | T3] = T2,
+	[#'ProtocolIE-Field'{id= ?'id-PLMNSupportList',
+			value = _PLMNSupportList, criticality = reject} | _T4] = T3.
 
 transfer_error() ->
 	[{userdata, [{doc, "Errror indication for bad PDU"}]}].
@@ -140,9 +140,9 @@ transfer_error(Config) ->
 	#'InitiatingMessage'{procedureCode = ?'id-ErrorIndication',
 			criticality = ignore, value = ErrorIndication} = IM,
 	#'ErrorIndication'{protocolIEs = RequestIEs} = ErrorIndication,
-	#'ProtocolIE-Field'{value = {protocol, 'transfer-syntax-error'},
-			criticality = ignore} = lists:keyfind(?'id-Cause',
-			#'ProtocolIE-Field'.id, RequestIEs).
+	[#'ProtocolIE-Field'{id = ?'id-Cause',
+			value = {protocol, 'transfer-syntax-error'},
+			criticality = ignore} | _T1] = RequestIEs.
 
 abstract_error() ->
 	[{userdata, [{doc, "Errror indication for missing mandatory IEs"}]}].
@@ -162,9 +162,9 @@ abstract_error(Config) ->
 	#'UnsuccessfulOutcome'{procedureCode = ?'id-NGSetup',
 			criticality = reject, value = NGSetupFailure} = UO,
 	#'NGSetupFailure'{protocolIEs = FailureIEs} = NGSetupFailure,
-	#'ProtocolIE-Field'{value = {protocol, 'abstract-syntax-error-reject'},
-			criticality = ignore} = lists:keyfind(?'id-Cause',
-			#'ProtocolIE-Field'.id, FailureIEs).
+	[#'ProtocolIE-Field'{id  = ?'id-Cause',
+			value = {protocol, 'abstract-syntax-error-reject'},
+			criticality = ignore} | _T1] = FailureIEs.
 
 %%---------------------------------------------------------------------
 %%  Internal functions

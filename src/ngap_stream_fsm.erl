@@ -184,12 +184,12 @@ initiating(#'InitiatingMessage'{procedureCode = ?'id-NGSetup',
 		#statedata{socket = Socket, assoc_id = Assoc,
 		stream = Stream} = Data) ->
 	try
-		#'ProtocolIE-Field'{value = _GlobalRANNodeID} = lists:keyfind(
-				?'id-GlobalRANNodeID', #'ProtocolIE-Field'.id, RequestIEs),
-		#'ProtocolIE-Field'{value = SupportedTAList} = lists:keyfind(
-				?'id-SupportedTAList', #'ProtocolIE-Field'.id, RequestIEs),
-		#'ProtocolIE-Field'{value = _DefaultPagingDRX} = lists:keyfind(
-				?'id-DefaultPagingDRX', #'ProtocolIE-Field'.id, RequestIEs),
+		[#'ProtocolIE-Field'{id = ?'id-GlobalRANNodeID',
+				value = _GlobalRANNodeID} | T1] = RequestIEs,
+		[#'ProtocolIE-Field'{id = ?'id-SupportedTAList',
+				value = SupportedTAList} | T2] = T1,
+		[#'ProtocolIE-Field'{id  = ?'id-DefaultPagingDRX',
+				value = _DefaultPagingDRX} | _T3] = T2,
 		SupportedTAList
 	of
 		TAs ->
