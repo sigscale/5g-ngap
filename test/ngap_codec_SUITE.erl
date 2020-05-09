@@ -29,7 +29,7 @@
 -export([encode/0, encode/1, decode/0, decode/1]).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("ngap/include/ngap_codec.hrl").
+-include("ngap_codec.hrl").
 
 %%---------------------------------------------------------------------
 %%  Test server callback functions

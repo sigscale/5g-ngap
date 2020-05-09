@@ -31,7 +31,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("kernel/include/inet_sctp.hrl").
--include_lib("ngap/include/ngap_codec.hrl").
+-include("ngap_codec.hrl").
 
 %%---------------------------------------------------------------------
 %%  Test server callback functions
