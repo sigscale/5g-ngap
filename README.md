@@ -11,5 +11,5 @@ NGAP services are divided into two groups:
 SCTP (RFC4960) shall be supported as the transport layer of NG-C signaling bearer.
 * A single stream shall be reserved for non UE-associated signaling.
 * At least one stream shall be reserved for UE-associated signaling.
-* All UE-associated signaling for a UE shall use the same stream stream.
+* All UE-associated signaling for a UE shall use the same stream.
 
