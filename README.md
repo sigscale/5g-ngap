@@ -6,7 +6,6 @@ NGAP services are divided into two groups:
 * UE-associated services
 
 ![stack-diagram](https://raw.githubusercontent.com/sigscale/5g-ngap/master/doc/ngap-stack.png)
-https://raw.githubusercontent.com/sigscale/5g-ngap/master/doc/ngap-stack.png
 
 ## 3GPP TS 38.412 NG Signalling Transport
 SCTP (RFC4960) shall be supported as the transport layer of NG-C signaling bearer.
