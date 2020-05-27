@@ -34,6 +34,7 @@
 -export([listening/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -type state() :: listening.
 
@@ -112,8 +113,8 @@ init([Sup, Opts] = _Args) ->
 		end
 	catch
 		Reason1 ->
-			error_logger:error_report(["Failed to open socket",
-					{module, ?MODULE}, {error, Reason1}, {options, Options}]),
+			?LOG_ERROR("Failed to open socket~n"
+					"error: ~w~noptions: ~w~n", [Reason1, Options]),
 			{stop, Reason1}
 	end.
 
@@ -136,27 +137,25 @@ listening(info, {sctp, Socket, FromAddr, FromPort,
 		{_AncData, #sctp_assoc_change{state = comm_up,
 		assoc_id = Assoc, outbound_streams = OutStreams,
 		inbound_streams = InStreams} = AssocChange}}, Data) ->
-	error_logger:info_report(["SCTP peer association change",
-			{module, ?MODULE}, {address, {FromAddr, FromPort}},
-			{streams, {OutStreams, InStreams}},
-			{association, Assoc}, {state, comm_up}]),
+	?LOG_INFO("SCTP peer association change~n"
+			"address: ~w~nstreams: ~w~nassociation: ~w~nstate: ~w~n",
+			[{FromAddr, FromPort}, {OutStreams, InStreams}, Assoc, comm_up]),
 	accept(Socket, FromAddr, FromPort, AssocChange, listening, Data);
 listening(info, {sctp, Socket, FromAddr, FromPort,
 		{_AncData, #sctp_assoc_change{state = AssocState,
 		assoc_id = Assoc, outbound_streams = OutStreams,
 		inbound_streams = InStreams}}}, Data) ->
-	error_logger:warning_report(["SCTP peer association change",
-			{module, ?MODULE}, {address, {FromAddr, FromPort}},
-			{streams, {OutStreams, InStreams}},
-			{association, Assoc}, {state, AssocState}]),
+	?LOG_WARNING("SCTP peer association change~n"
+			"address: ~w~nstreams: ~w~nassociation: ~w~nstrate: ~w~n",
+			[{FromAddr, FromPort}, {OutStreams, InStreams}, Assoc, AssocState]),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{next_state, listening, Data};
 listening(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_paddr_change{state = AddressState,
 		addr = {PeerAddr, PeerPort}, assoc_id = Assoc}}}, Data) ->
-	error_logger:warning_report(["SCTP peer address state change",
-			{module, ?MODULE}, {address, {PeerAddr, PeerPort}},
-			{association, Assoc}, {state, AddressState}]),
+	?LOG_WARNING("SCTP peer address state change~n"
+			"address: ~w~nassociation: ~w~nstate: ~w~n",
+			[{PeerAddr, PeerPort}, Assoc, AddressState]),
 	ok = inet:setopts(Socket, [{active, once}]),
 	{next_state, listening, Data};
 listening(cast, {'M-SCTP_RELEASE', request, Ref, From},
@@ -211,9 +210,9 @@ terminate(_Reason, _State, #statedata{socket = Socket} = Data) ->
 		ok ->
 			ok;
 		{error, Reason1} ->
-			error_logger:error_report(["Failed to close socket",
-					{module, ?MODULE}, {socket, Socket},
-					{error, Reason1}, {statedata, Data}])
+			?LOG_ERROR("Failed to close socket~n"
+					"socket: ~w~nerror: ~w~nstatedata: ~p~n",
+					[Socket, Reason1, Data])
 	end.
 
 -spec code_change(OldVsn, OldState, OldData, Extra) -> Result

@@ -32,6 +32,7 @@
 			terminate/2, code_change/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -record(state,
 		{sup :: pid(),
@@ -240,9 +241,8 @@ terminate(shutdown = _Reason, _State) ->
 terminate({shutdown, _} = _Reason, _State) ->
 	ok;
 terminate(Reason, State) ->
-	error_logger:error_report(["Shutdown",
-			{module, ?MODULE}, {pid, self()},
-			{reason, Reason}, {state, State}]).
+	?LOG_ERROR("Shutdown~nreason: ~w~nstate: ~w~n",
+			[Reason, State]).
 
 -spec code_change(OldVsn, State, Extra) -> Result
 	when

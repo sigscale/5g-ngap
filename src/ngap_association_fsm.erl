@@ -34,6 +34,7 @@
 -export([active/3]).
 
 -include_lib("kernel/include/inet_sctp.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -type state() :: active.
 
@@ -125,9 +126,8 @@ active(info, {sctp, Socket, _FromAddr, _FromPort,
 		{_AncData, #sctp_paddr_change{state = AddressState,
 		assoc_id = Assoc, addr = {PeerAddr, PeerPort}}}},
 		#statedata{assoc_id = Assoc} = Data) ->
-	error_logger:warning_report(["SCTP peer address status change",
-			{module, ?MODULE}, {address, {PeerAddr, PeerPort}},
-			{state, AddressState}]),
+	?LOG_WARNING("SCTP peer address status change~naddress: ~w~nstate: ~w~n",
+			[{PeerAddr, PeerPort}, AddressState]),
 	ok = inet:setopts(Socket, [{active, once}]),
 	NewData = Data#statedata{peer_addr = PeerAddr, peer_port = PeerPort},
 	{next_state, active, NewData};
