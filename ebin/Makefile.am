@@ -24,8 +24,8 @@ beam_DATA = ngap.beam \
 ngap_codec.beam:	$(top_builddir)/src/ngap_codec.erl
 	$(ERLC) $(ERLCFLAGS) $<
 
-%.beam:	$(top_srcdir)/src/%.erl
-	$(ERLC) $(ERLCFLAGS) -I $(top_builddir)/src $<
+%.beam:	$(top_srcdir)/src/%.erl $(top_srcdir)/include/ngap.hrl
+	$(ERLC) $(ERLCFLAGS) -I $(top_srcdir)/include -I $(top_builddir)/src $<
 
 %.app:   %.app-in
 	sed -e 's/%APP_NAME%/$(PACKAGE_NAME)/' \

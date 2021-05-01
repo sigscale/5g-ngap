@@ -35,6 +35,7 @@
 
 -include_lib("kernel/include/inet_sctp.hrl").
 -include("ngap_codec.hrl").
+-include("ngap.hrl").
 
 -type state() :: active.
 

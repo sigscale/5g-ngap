@@ -6,7 +6,7 @@
 ##
 AC_INIT([ngap], [0.1.0], [issues@sigscale.org])
 AC_COPYRIGHT([Copyright (c) 2020 SigScale Global Inc.])
-AC_PREREQ(2.63)
+AC_PREREQ(2.64)
 AC_CONFIG_SRCDIR([src/ngap_app.erl])
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([-Wno-portability])
@@ -57,14 +57,13 @@ AC_SUBST(asndir)
 ## Libraries:  check for libraries
 ##
 AC_LANG_POP([Erlang])
-AC_CHECK_LIB([sctp], [sctp_send], [],
-		[AC_MSG_ERROR([libsctp was not found!])])
+AC_CHECK_LIB([sctp], [sctp_send], [], [AC_MSG_WARN([missing libsctp!])])
 AC_LANG_PUSH([Erlang])
 AC_ERLANG_SUBST_ERTS_VER
 AC_ERLANG_CHECK_LIB([kernel], [], [AC_MSG_ERROR([kernel was not found!])])
 AC_ERLANG_CHECK_LIB([stdlib],
-		[if echo -e "$ERLANG_LIB_VER_stdlib\n3.5" | sort -CV;
-		then AC_MSG_ERROR([>= stdlib-3.5 required!]); fi],
+		[AS_VERSION_COMPARE([$ERLANG_LIB_VER_stdlib], ["3.5"],
+				[AC_MSG_ERROR([>= stdlib-3.5 required!])])],
 		[AC_MSG_ERROR([stdlib was not found!])])
 AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 
@@ -89,6 +88,6 @@ AC_ERLANG_CHECK_LIB([asn1], [], [AC_MSG_ERROR([asn1 was not found!])])
 ## Output:  create output files
 ##
 
-AC_OUTPUT([Makefile src/Makefile ebin/Makefile doc/Makefile
-		test/Makefile])
+AC_OUTPUT([Makefile include/Makefile src/Makefile ebin/Makefile
+		doc/Makefile test/Makefile])
 

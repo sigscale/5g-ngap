@@ -27,8 +27,16 @@
 -export([start/2, stop/1, config_change/3]).
 %% optional callbacks for application behaviour
 -export([prep_stop/1, start_phase/3]).
+%% public API
+-export([install/0, install/1]).
+
+-include("ngap.hrl").
+-include_lib("kernel/include/logger.hrl").
 
 -record(state, {}).
+
+-define(WAITFORSCHEMA, 11000).
+-define(WAITFORTABLES, 11000).
 
 %%----------------------------------------------------------------------
 %% The ngap_app aplication callbacks
@@ -47,7 +55,135 @@
 %% @see //kernel/application:start/2
 %%
 start(normal = _StartType, _Args) ->
-	supervisor:start_link(ngap_sup, []).
+	Tables = [ue_conection],
+	case mnesia:wait_for_tables(Tables, 60000) of
+		ok ->
+			supervisor:start_link(ngap_sup, []);
+		{timeout, BadTabList} ->
+			case force(BadTabList) of
+				ok ->
+					supervisor:start_link(ngap_sup, []);
+				{error, Reason} ->
+					?LOG_ERROR("ngap application failed to start~n"
+							"reason: ~w~n", [Reason]),
+					{error, Reason}
+			end;
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+-spec install() -> Result
+	when
+		Result :: {ok, Tables},
+		Tables :: [atom()].
+%% @equiv install([node() | nodes()])
+install() ->
+	Nodes = [node() | nodes()],
+	install(Nodes).
+
+-spec install(Nodes) -> Result
+	when
+		Nodes :: [node()],
+		Result :: {ok, Tables},
+		Tables :: [atom()].
+%% @doc Initialize AMF tables.
+%%
+%% 	`Nodes' is a list of the nodes where tables will be replicated.
+%%
+%% 	If {@link //mnesia. mnesia} is not running an attempt
+%% 	will be made to create a schema on all available nodes.
+%% 	If a schema already exists on any node
+%% 	{@link //mnesia. mnesia} will be started on all nodes
+%% 	using the existing schema.
+%%
+%% @private
+%%
+install(Nodes) when is_list(Nodes) ->
+	case mnesia:system_info(is_running) of
+		no ->
+			case mnesia:create_schema(Nodes) of
+				ok ->
+					?LOG_INFO("Created mnesia schema~n"
+							"nodes: ~w~n", [Nodes]),
+					install1(Nodes);
+				{error, Reason} ->
+					?LOG_ERROR("Failed to create schema~n"
+							"~p~nnodes: ~w~n",
+							[mnesia:error_description(Reason), Nodes]),
+					{error, Reason}
+			end;
+		_ ->
+			install2(Nodes)
+	end.
+%% @hidden
+install1([Node] = Nodes) when Node == node() ->
+	case mnesia:start() of
+		ok ->
+			?LOG_INFO("Started mnesia~n"),
+			install2(Nodes);
+		{error, Reason} ->
+			?LOG_ERROR("~p~n", [mnesia:error_description(Reason)]),
+			{error, Reason}
+	end;
+install1(Nodes) ->
+	case rpc:multicall(Nodes, mnesia, start, [], 60000) of
+		{Results, []} ->
+			F = fun(ok) ->
+						false;
+					(_) ->
+						true
+			end,
+			case lists:filter(F, Results) of
+				[] ->
+					?LOG_INFO("Started mnesia on all nodes~n"
+							"nodes: ~w~n", [Nodes]),
+					install2(Nodes);
+				NotOKs ->
+					?LOG_ERROR("Failed to start mnesia on all nodes~n"
+							"nodes: ~w~nerrors: ~w~n", [Nodes, NotOKs]),
+					{error, NotOKs}
+			end;
+		{Results, BadNodes} ->
+			?LOG_ERROR("Failed to start mnesia on all nodes~n"
+					"nodes: ~w~nresults: ~w~nbad nodes: ~w~n",
+					[Nodes, Results, BadNodes]),
+			{error, {Results, BadNodes}}
+	end.
+%% @hidden
+install2(Nodes) ->
+	case mnesia:wait_for_tables([schema], ?WAITFORSCHEMA) of
+		ok ->
+			install3(Nodes, []);
+		{error, Reason} ->
+			?LOG_ERROR("~p~n", [mnesia:error_description(Reason)]),
+			{error, Reason};
+		{timeout, Tables} ->
+			?LOG_ERROR("Timeout waiting for tables~n",
+					"tables: ~w~n", [Tables]),
+			{error, timeout}
+	end.
+%% @hidden
+install3(Nodes, Acc) ->
+	case mnesia:create_table(ue_connection,
+			[{type, ordered_set}, {ram_copies, Nodes},
+			{attributes, record_info(fields, ue_connection)},
+			{index, [#ue_connection.imsi]}]) of
+		{atomic, ok} ->
+			?LOG_INFO("Created new UE connection table.~n"),
+			install4(Nodes, [ue_connection | Acc]);
+		{aborted, {not_active, _, Node} = Reason} ->
+			?LOG_ERROR("Mnesia not started on node: ~w~n", [Node]),
+			{error, Reason};
+		{aborted, {already_exists, ue_connection}} ->
+			?LOG_INFO("Found existing UE connection table.~n"),
+			install4(Nodes, [ue_connection | Acc]);
+		{aborted, Reason} ->
+			?LOG_ERROR("~p~n", [mnesia:error_description(Reason)]),
+			{error, Reason}
+	end.
+%% @hidden
+install4(_Nodes, Acc) ->
+	{ok, lists:reverse(Acc)}.
 
 %%----------------------------------------------------------------------
 %% The ngap_app private API
@@ -101,4 +237,21 @@ config_change(_Changed, _New, _Removed) ->
 %%----------------------------------------------------------------------
 %% internal functions
 %%----------------------------------------------------------------------
+
+-spec force(Tables) -> Result
+	when
+		Tables :: [TableName],
+		Result :: ok | {error, Reason},
+		TableName :: atom(),
+		Reason :: term().
+%% @doc Try to force load bad tables.
+force([H | T]) ->
+	case mnesia:force_load_table(H) of
+		yes ->
+			force(T);
+		ErrorDescription ->
+			{error, ErrorDescription}
+	end;
+force([]) ->
+	ok.
 
