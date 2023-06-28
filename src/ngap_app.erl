@@ -55,7 +55,7 @@
 %% @see //kernel/application:start/2
 %%
 start(normal = _StartType, _Args) ->
-	Tables = [ue_conection],
+	Tables = [ue_connection],
 	case mnesia:wait_for_tables(Tables, 60000) of
 		ok ->
 			supervisor:start_link(ngap_sup, []);
